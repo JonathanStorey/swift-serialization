@@ -7,6 +7,8 @@ import Foundation
 /// with every object's keys sorted. Sorting makes property order irrelevant,
 /// matching `==`. The id is not an RFC 9562 UUID and carries no version bits.
 extension JSONSchema: Identifiable {
+    /// Computed on every access by writing and hashing the whole schema.
+    /// Store it when you need it repeatedly, such as in a SwiftUI `ForEach`.
     public var id: UUID {
         UUID(stableHashOf: json.canonicalized().description)
     }
