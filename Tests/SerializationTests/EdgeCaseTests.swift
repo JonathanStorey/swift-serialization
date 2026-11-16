@@ -128,7 +128,7 @@ private func json(_ value: some Encodable) -> JSONRepresentation {
     }
 
     @Test func floatRoundTrips() throws {
-        for value: Float in [0.1, -2.5, 3.4028235e38, 1.0e-45, 16_777_216] {
+        for value: Float in [0.1, -2.5, .greatestFiniteMagnitude, .leastNonzeroMagnitude, 16_777_216] {
             let decoded = try #require(json(value).value(Float.self))
             #expect(decoded.bitPattern == value.bitPattern)
         }

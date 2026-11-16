@@ -219,6 +219,72 @@ import Testing
         #expect(try JSONRepresentation(Twice()).description == #"{"a":3,"b":2}"#)
     }
 
+    /// `JSONEncoder` keeps only the second value when a key is encoded twice,
+    /// even when the first was an object.
+    @Test func repeatedKeyReplacesEarlierObject() throws {
+        struct Twice: Encodable {
+            enum CodingKeys: String, CodingKey { case a }
+            func encode(to encoder: any Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(["x": 1], forKey: .a)
+                try container.encode(["y": 2], forKey: .a)
+            }
+        }
+        #expect(try JSONRepresentation(Twice()) == ["a": ["y": 2]])
+        #expect(try matchesJSONEncoder(Twice()))
+    }
+
+    /// A nested container on a repeated key adds to what the key already holds.
+    @Test func repeatedNestedContainerMerges() throws {
+        struct Twice: Encodable {
+            enum CodingKeys: String, CodingKey { case a, x, y }
+            func encode(to encoder: any Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                var first = container.nestedContainer(keyedBy: CodingKeys.self, forKey: .a)
+                try first.encode(1, forKey: .x)
+                var second = container.nestedContainer(keyedBy: CodingKeys.self, forKey: .a)
+                try second.encode(2, forKey: .y)
+            }
+        }
+        #expect(try JSONRepresentation(Twice()) == ["a": ["x": 1, "y": 2]])
+        #expect(try matchesJSONEncoder(Twice()))
+    }
+
+    @Test func nestedContainersInsideUnkeyedContainers() throws {
+        class Base: Encodable { var name = "base" }
+        struct Mixed: Encodable {
+            enum CodingKeys: String, CodingKey { case list, label }
+            func encode(to encoder: any Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                var list = container.nestedUnkeyedContainer(forKey: .list)
+                try list.encode(1)
+                try list.encodeNil()
+                var keyed = list.nestedContainer(keyedBy: CodingKeys.self)
+                try keyed.encode("inner", forKey: .label)
+                var unkeyed = list.nestedUnkeyedContainer()
+                try unkeyed.encode(true)
+                try Base().encode(to: list.superEncoder())
+                #expect(list.count == 5)
+            }
+        }
+        let expected: JSONRepresentation = ["list": [1, nil, ["label": "inner"], [true], ["name": "base"]]]
+        #expect(try JSONRepresentation(Mixed()) == expected)
+        #expect(try matchesJSONEncoder(Mixed()))
+    }
+
+    /// `Int` keys become strings, and other keys turn the dictionary into an
+    /// array of alternating keys and values, as with `JSONEncoder`.
+    @Test func dictionaryKeys() throws {
+        let byInt: [Int: String] = [1: "a", 2: "b"]
+        #expect(try JSONRepresentation(byInt) == ["1": "a", "2": "b"])
+        #expect(try JSONRepresentation(byInt).decode([Int: String].self) == byInt)
+        #expect(try matchesJSONEncoder(byInt))
+
+        let byDouble: [Double: String] = [1.5: "a"]
+        #expect(try JSONRepresentation(byDouble) == [1.5, "a"])
+        #expect(try JSONRepresentation(byDouble).decode([Double: String].self) == byDouble)
+    }
+
     @Test func emptyEncodingThrows() {
         struct Nothing: Encodable { func encode(to encoder: any Encoder) throws {} }
         #expect(throws: EncodingError.self) { try JSONRepresentation(Nothing()) }
@@ -230,4 +296,11 @@ import Testing
             try JSONRepresentation.object([(key: "a", value: 1), (key: "a", value: 2)]).decode([String: Int].self)
         }
     }
+}
+
+/// Whether `init(_:)` and `JSONEncoder` produce the same value, ignoring key
+/// order.
+private func matchesJSONEncoder(_ value: some Encodable) throws -> Bool {
+    let foundation = try JSONDecoder().decode(JSONRepresentation.self, from: JSONEncoder().encode(value))
+    return try JSONRepresentation(value) == foundation
 }

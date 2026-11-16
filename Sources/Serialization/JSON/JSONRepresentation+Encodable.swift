@@ -81,7 +81,10 @@ private final class EncodingNode {
         }
     }
 
+    /// Replaces whatever the node held, so encoding a key twice keeps only
+    /// the second value, as `JSONEncoder` does.
     func encode(_ value: some Encodable, codingPath: [any CodingKey]) throws {
+        content = .empty
         if let leaf = Self.leaf(value) {
             content = .value(leaf)
         } else {
@@ -107,8 +110,9 @@ private final class EncodingNode {
         }
     }
 
-    /// The child for `key`, reused when the key was written before so that a
-    /// repeated key replaces its value in place.
+    /// The child for `key`, reused when the key was written before. The key
+    /// keeps its first position. A nested container on a repeated key adds
+    /// to the earlier contents, and an encoded value replaces them.
     func child(forKey key: String) -> EncodingNode {
         guard case .object(var pairs) = content else {
             let child = EncodingNode()
