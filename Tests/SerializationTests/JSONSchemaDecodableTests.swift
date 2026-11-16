@@ -160,12 +160,12 @@ private struct Pair: Decodable {
     }
 
     @Test func caseIterableRawValueEnums() throws {
-        #expect(try JSONSchema(for: Color.self) == .string(allowed: ["red", "green"]))
-        #expect(try JSONSchema(for: Priority.self) == .integer(allowed: [1, 2]))
+        #expect(try JSONSchema(for: Color.self) == .string(cases: ["red", "green"]))
+        #expect(try JSONSchema(for: Priority.self) == .integer(cases: [1, 2]))
         let expected: JSONSchema = .object([
-            (key: "primary", value: .string(allowed: ["red", "green"])),
-            (key: "accent", value: .optional(.string(allowed: ["red", "green"]))),
-            (key: "priority", value: .integer(allowed: [1, 2])),
+            (key: "primary", value: .string(cases: ["red", "green"])),
+            (key: "accent", value: .optional(.string(cases: ["red", "green"]))),
+            (key: "priority", value: .integer(cases: [1, 2])),
         ])
         #expect(try JSONSchema(for: Palette.self) == expected)
     }

@@ -27,12 +27,12 @@ extension JSONSchema: JSONRepresentable {
             case "null": schema = .null
             case "boolean": schema = .boolean
             case "integer":
-                guard let allowed = Self.allowedValues(Int64.self, from: json) else { return nil }
-                schema = .integer(allowed: allowed)
+                guard let cases = Self.cases(Int64.self, from: json) else { return nil }
+                schema = .integer(cases: cases)
             case "number": schema = .number
             case "string":
-                guard let allowed = Self.allowedValues(String.self, from: json) else { return nil }
-                schema = .string(allowed: allowed)
+                guard let cases = Self.cases(String.self, from: json) else { return nil }
+                schema = .string(cases: cases)
             case "array":
                 guard let items = json["items"].flatMap(JSONSchema.init(json:)) else { return nil }
                 schema = .array(items)
@@ -58,9 +58,9 @@ extension JSONSchema: JSONRepresentable {
         switch self {
         case .null: return ["type": "null"]
         case .boolean: return ["type": "boolean"]
-        case .integer(let allowed): return Self.scalar("integer", allowed: allowed?.sorted().map(\.json))
+        case .integer(let cases): return Self.scalar("integer", cases: cases?.sorted().map(\.json))
         case .number: return ["type": "number"]
-        case .string(let allowed): return Self.scalar("string", allowed: allowed?.sorted().map(\.json))
+        case .string(let cases): return Self.scalar("string", cases: cases?.sorted().map(\.json))
         case .array(let items): return ["type": "array", "items": items.json]
         case .optional(let wrapped): return ["anyOf": [wrapped.json, Self.null.json]]
         case .object(let properties):
@@ -82,17 +82,17 @@ extension JSONSchema: JSONRepresentable {
 private extension JSONSchema {
     /// `{"type": <type>}`, plus a sorted `"enum"` list when values are
     /// restricted, so equal schemas write equal JSON.
-    static func scalar(_ type: String, allowed: [JSONRepresentation]?) -> JSONRepresentation {
+    static func scalar(_ type: String, cases: [JSONRepresentation]?) -> JSONRepresentation {
         var object: JSONRepresentation.Object = [(key: "type", value: .string(type))]
-        if let allowed {
-            object.append((key: "enum", value: .array(allowed)))
+        if let cases {
+            object.append((key: "enum", value: .array(cases)))
         }
         return .object(object)
     }
 
     /// Reads an optional `"enum"` list. Returns `.some(nil)` when there is no
     /// list, and `nil` when the list is malformed or repeats a value.
-    static func allowedValues<Value: JSONRepresentable & Hashable>(_ type: Value.Type, from json: JSONRepresentation) -> Set<Value>?? {
+    static func cases<Value: JSONRepresentable & Hashable>(_ type: Value.Type, from json: JSONRepresentation) -> Set<Value>?? {
         guard let list = json["enum"] else { return .some(nil) }
         guard let values = [Value](json: list) else { return nil }
         let allowed = Set(values)

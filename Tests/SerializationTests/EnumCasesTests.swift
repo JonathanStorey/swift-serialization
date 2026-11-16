@@ -38,22 +38,22 @@ private struct Shirt: Codable {
     var preferred: Size?
 }
 
-@Suite struct AllowedValuesTests {
+@Suite struct EnumCasesTests {
     // MARK: Recording
 
     @Test func caseIterableEnumsRecordTheirRawValues() throws {
-        #expect(try JSONSchema(for: Size.self) == .string(allowed: ["small", "medium", "large"]))
-        #expect(try JSONSchema(for: Renamed.self) == .string(allowed: ["S", "M"]))
-        #expect(try JSONSchema(for: Rank.self) == .integer(allowed: [1, 2, 3]))
-        #expect(try JSONSchema(for: Signed.self) == .integer(allowed: [-1, 0, 1]))
+        #expect(try JSONSchema(for: Size.self) == .string(cases: ["small", "medium", "large"]))
+        #expect(try JSONSchema(for: Renamed.self) == .string(cases: ["S", "M"]))
+        #expect(try JSONSchema(for: Rank.self) == .integer(cases: [1, 2, 3]))
+        #expect(try JSONSchema(for: Signed.self) == .integer(cases: [-1, 0, 1]))
     }
 
     @Test func nonCaseIterableEnumsStayUnrestricted() throws {
         #expect(try JSONSchema(for: Open.self) == .string())
     }
 
-    @Test func allowedValuesFollowEnumsIntoArraysAndOptionals() throws {
-        let size: JSONSchema = .string(allowed: ["small", "medium", "large"])
+    @Test func casesFollowEnumsIntoArraysAndOptionals() throws {
+        let size: JSONSchema = .string(cases: ["small", "medium", "large"])
         let expected: JSONSchema = .object([
             (key: "size", value: size),
             (key: "sizes", value: .array(size)),
@@ -74,12 +74,12 @@ private struct Shirt: Codable {
     }
 
     @Test(arguments: [
-        (JSONSchema.string(), JSONSchema.string(allowed: ["a"])),
-        (.string(allowed: []), .string()),
-        (.string(allowed: ["a"]), .string(allowed: ["b"])),
-        (.integer(allowed: [1]), .integer()),
-        (.integer(allowed: [1]), .integer(allowed: [1, 2])),
-        (.integer(allowed: [1]), .string(allowed: ["1"])),
+        (JSONSchema.string(), JSONSchema.string(cases: ["a"])),
+        (.string(cases: []), .string()),
+        (.string(cases: ["a"]), .string(cases: ["b"])),
+        (.integer(cases: [1]), .integer()),
+        (.integer(cases: [1]), .integer(cases: [1, 2])),
+        (.integer(cases: [1]), .string(cases: ["1"])),
     ])
     func restrictionsAreDistinct(_ pair: (JSONSchema, JSONSchema)) {
         #expect(pair.0 != pair.1)
@@ -89,10 +89,10 @@ private struct Shirt: Codable {
     // MARK: JSON Schema text
 
     @Test func writesSortedEnumLists() {
-        #expect(JSONSchema.string(allowed: ["medium", "large", "small"]).description == #"{"type":"string","enum":["large","medium","small"]}"#)
-        #expect(JSONSchema.integer(allowed: [10, -2, 3]).description == #"{"type":"integer","enum":[-2,3,10]}"#)
+        #expect(JSONSchema.string(cases: ["medium", "large", "small"]).description == #"{"type":"string","enum":["large","medium","small"]}"#)
+        #expect(JSONSchema.integer(cases: [10, -2, 3]).description == #"{"type":"integer","enum":[-2,3,10]}"#)
         #expect(JSONSchema.string().description == #"{"type":"string"}"#)
-        #expect(JSONSchema.string(allowed: []).description == #"{"type":"string","enum":[]}"#)
+        #expect(JSONSchema.string(cases: []).description == #"{"type":"string","enum":[]}"#)
     }
 
     @Test func equalSchemasWriteEqualText() throws {
@@ -100,11 +100,11 @@ private struct Shirt: Codable {
     }
 
     @Test(arguments: [
-        JSONSchema.string(allowed: ["a", "b"]),
-        .string(allowed: []),
-        .integer(allowed: [Int64.min, 0, Int64.max]),
-        .array(.optional(.string(allowed: ["x"]))),
-        .object([(key: "size", value: .string(allowed: ["s", "m"])), (key: "rank", value: .optional(.integer(allowed: [1])))]),
+        JSONSchema.string(cases: ["a", "b"]),
+        .string(cases: []),
+        .integer(cases: [Int64.min, 0, Int64.max]),
+        .array(.optional(.string(cases: ["x"]))),
+        .object([(key: "size", value: .string(cases: ["s", "m"])), (key: "rank", value: .optional(.integer(cases: [1])))]),
     ])
     func roundTripsThroughJSON(_ schema: JSONSchema) {
         #expect(JSONSchema(json: schema.json) == schema)

@@ -8,13 +8,13 @@ public indirect enum JSONSchema: Sendable {
 
     case null
     case boolean
-    /// A whole number. `allowed` lists the only permitted values, as for an
-    /// `Int` raw-value enum, and `nil` permits any integer.
-    case integer(allowed: Set<Int64>? = nil)
+    /// A whole number. `cases` lists the raw values of an `Int` raw-value enum,
+    /// the only values permitted, and `nil` permits any integer.
+    case integer(cases: Set<Int64>? = nil)
     case number
-    /// A string. `allowed` lists the only permitted values, as for a `String`
-    /// raw-value enum, and `nil` permits any string.
-    case string(allowed: Set<String>? = nil)
+    /// A string. `cases` lists the raw values of a `String` raw-value enum,
+    /// the only values permitted, and `nil` permits any string.
+    case string(cases: Set<String>? = nil)
     case array(JSONSchema)
     case object(Properties)
     case optional(JSONSchema)
@@ -40,13 +40,13 @@ extension JSONSchema: Hashable {
         switch self {
         case .null: hasher.combine(0)
         case .boolean: hasher.combine(1)
-        case .integer(let allowed):
+        case .integer(let cases):
             hasher.combine(2)
-            hasher.combine(allowed)
+            hasher.combine(cases)
         case .number: hasher.combine(3)
-        case .string(let allowed):
+        case .string(let cases):
             hasher.combine(4)
-            hasher.combine(allowed)
+            hasher.combine(cases)
         case .array(let items):
             hasher.combine(5)
             hasher.combine(items)

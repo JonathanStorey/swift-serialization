@@ -12,7 +12,7 @@ extension JSONSchema {
     /// - `Date` and `Decimal` record `.number`, and `URL`, `Data` and `UUID`
     ///   record `.string`, matching `JSONEncoder`'s default strategies.
     /// - A `CaseIterable` raw-value enum records its raw values as the only
-    ///   allowed values, for example `.string(allowed: ["red", "green"])`.
+    ///   allowed values, for example `.string(cases: ["red", "green"])`.
     ///   A raw-value enum whose placeholder (`""` or `0`) is not a case must
     ///   conform to `CaseIterable`.
     /// - Throws `DecodingError.dataCorrupted` for what `JSONSchema` cannot
@@ -91,24 +91,24 @@ extension SchemaRecorder {
             }
             value = first
         }
-        recordAllowedValues(of: type)
+        recordCases(of: type)
         return value
     }
 
     /// Narrows a recorded `.string()` or `.integer()` to the raw values of a
     /// `CaseIterable` raw-value enum.
-    func recordAllowedValues<T>(of type: T.Type) {
+    func recordCases<T>(of type: T.Type) {
         guard case .scalar(let schema) = kind, let rawValues = rawValues(of: type) else { return }
         switch schema {
         case .string(.none):
             let strings = rawValues.compactMap { $0 as? String }
             if strings.count == rawValues.count {
-                kind = .scalar(.string(allowed: Set(strings)))
+                kind = .scalar(.string(cases: Set(strings)))
             }
         case .integer(.none):
             let integers = rawValues.compactMap { ($0 as? any BinaryInteger).flatMap { Int64(exactly: $0) } }
             if integers.count == rawValues.count {
-                kind = .scalar(.integer(allowed: Set(integers)))
+                kind = .scalar(.integer(cases: Set(integers)))
             }
         default:
             break
