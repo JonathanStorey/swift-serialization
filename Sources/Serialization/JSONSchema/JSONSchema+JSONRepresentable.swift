@@ -4,37 +4,48 @@
 /// which omits `nil` properties. Anywhere else, an optional schema is written
 /// as `{"anyOf": [<wrapped>, {"type": "null"}]}`.
 ///
-/// `init?(json:)` reads the subset of JSON Schema that `json` writes.
+/// `init?(json:)` reads exactly the subset of JSON Schema that `json` writes.
+/// Anything it cannot represent fails instead of being dropped: an unknown
+/// keyword, a duplicate key, or a `required` name with no matching property.
 extension JSONSchema: JSONRepresentable {
     public init?(json: JSON) {
+        guard case .object(let object) = json else { return nil }
+        let keys = object.map(\.key)
+        guard Set(keys).count == keys.count else { return nil }
+
+        let schema: JSONSchema
+        let allowedKeys: Set<String>
+
         if case .array(let options)? = json["anyOf"] {
             guard options.count == 2, options[1] == Self.null.json, let wrapped = JSONSchema(json: options[0]) else { return nil }
-            self = .optional(wrapped)
-            return
-        }
-        guard case .string(let type)? = json["type"] else { return nil }
-        switch type {
-        case "null": self = .null
-        case "boolean": self = .boolean
-        case "integer": self = .integer
-        case "number": self = .number
-        case "string": self = .string
-        case "array":
-            guard let items = json["items"].flatMap(JSONSchema.init(json:)) else { return nil }
-            self = .array(items)
-        case "object":
-            guard case .object(let properties) = json["properties"] ?? [:],
-                  let required = [String](json: json["required"] ?? [])
-            else { return nil }
-            var result: Properties = []
-            for (key, value) in properties {
-                guard let schema = JSONSchema(json: value) else { return nil }
-                result.append((key: key, value: required.contains(key) ? schema : .optional(schema)))
+            schema = .optional(wrapped)
+            allowedKeys = ["anyOf"]
+        } else {
+            guard case .string(let type)? = json["type"] else { return nil }
+            switch type {
+            case "null": schema = .null
+            case "boolean": schema = .boolean
+            case "integer": schema = .integer
+            case "number": schema = .number
+            case "string": schema = .string
+            case "array":
+                guard let items = json["items"].flatMap(JSONSchema.init(json:)) else { return nil }
+                schema = .array(items)
+            case "object":
+                guard let properties = Self.properties(from: json) else { return nil }
+                schema = .object(properties)
+            default:
+                return nil
             }
-            self = .object(result)
-        default:
-            return nil
+            allowedKeys = switch type {
+            case "array": ["type", "items"]
+            case "object": ["type", "properties", "required"]
+            default: ["type"]
+            }
         }
+
+        guard allowedKeys.isSuperset(of: keys) else { return nil }
+        self = schema
     }
 
     public var json: JSON {
@@ -61,6 +72,26 @@ extension JSONSchema: JSONRepresentable {
 }
 
 private extension JSONSchema {
+    /// Reads `properties` and `required` from an object schema. A property
+    /// missing from `required` becomes ``JSONSchema/optional(_:)``.
+    static func properties(from json: JSON) -> Properties? {
+        guard case .object(let object) = json["properties"] ?? [:],
+              let required = [String](json: json["required"] ?? [])
+        else { return nil }
+        let names = object.map(\.key)
+        guard Set(names).count == names.count,
+              Set(required).count == required.count,
+              Set(required).isSubset(of: names)
+        else { return nil }
+
+        var properties: Properties = []
+        for (name, value) in object {
+            guard let schema = JSONSchema(json: value) else { return nil }
+            properties.append((key: name, value: required.contains(name) ? schema : .optional(schema)))
+        }
+        return properties
+    }
+
     var isOptional: Bool {
         if case .optional = self { true } else { false }
     }
