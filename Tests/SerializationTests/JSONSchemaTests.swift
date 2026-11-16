@@ -18,7 +18,7 @@ import Testing
     }
 
     @Test func objectDerivesRequiredFromOptional() {
-        let expected: JSON = [
+        let expected: JSONRepresentation = [
             "type": "object",
             "properties": [
                 "name": ["type": "string"],
@@ -38,7 +38,7 @@ import Testing
 
     @Test func optionalOutsideAPropertyIsNullable() {
         let schema: JSONSchema = .array(.optional(.integer))
-        let expected: JSON = ["type": "array", "items": ["anyOf": [["type": "integer"], ["type": "null"]]]]
+        let expected: JSONRepresentation = ["type": "array", "items": ["anyOf": [["type": "integer"], ["type": "null"]]]]
         #expect(schema.json == expected)
     }
 
@@ -72,5 +72,5 @@ import Testing
 }
 
 private extension JSONSchema {
-    subscript(key: String) -> JSON? { json[key] }
+    subscript(key: String) -> JSONRepresentation? { json[key] }
 }

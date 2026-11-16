@@ -30,8 +30,8 @@ import Testing
     }
 
     @Test func textIsComparedNotNumericValue() {
-        #expect(JSON.number("1") != JSON.number("1.0"))
-        #expect(JSON.number("100") != JSON.number("1e2"))
+        #expect(JSONRepresentation.number("1") != JSONRepresentation.number("1.0"))
+        #expect(JSONRepresentation.number("100") != JSONRepresentation.number("1e2"))
     }
 }
 
@@ -141,7 +141,7 @@ import Testing
     }
 
     @Test func emptyContainersAreDistinct() {
-        #expect(JSON.array([]) != JSON.object([]))
+        #expect(JSONRepresentation.array([]) != JSONRepresentation.object([]))
         #expect([Int](json: []) == [])
         #expect([Int](json: [:]) == nil)
     }
@@ -157,7 +157,7 @@ import Testing
     }
 
     @Test func duplicateKeysAreKeptAndSubscriptReturnsFirst() {
-        let json: JSON = .object([(key: "a", value: 1), (key: "a", value: 2)])
+        let json: JSONRepresentation = .object([(key: "a", value: 1), (key: "a", value: 2)])
         #expect(json["a"] == 1)
         guard case .object(let object) = json else {
             Issue.record("Expected an object")
@@ -171,8 +171,8 @@ import Testing
     // 1,000 levels overflowed there in debug builds. 100 levels keeps a wide
     // margin. A future parser will cap depth the way JSONDecoder does.
     @Test func deepNestingCompareAndHash() {
-        var a: JSON = 0
-        var b: JSON = 0
+        var a: JSONRepresentation = 0
+        var b: JSONRepresentation = 0
         for _ in 0..<100 {
             a = ["next": a]
             b = ["next": b]
@@ -182,7 +182,7 @@ import Testing
     }
 }
 
-// MARK: - JSONSchema
+// MARK: - JSONRepresentationSchema
 
 @Suite struct JSONSchemaEdgeTests {
     @Test(arguments: [
@@ -190,14 +190,14 @@ import Testing
         ["type": "array", "items": ["type": "string"], "maxItems": 3],
         ["type": "object", "properties": [:], "additionalProperties": false],
         ["anyOf": [["type": "string"], ["type": "null"]], "description": "x"],
-    ] as [JSON])
-    func rejectsUnknownKeywords(_ json: JSON) {
+    ] as [JSONRepresentation])
+    func rejectsUnknownKeywords(_ json: JSONRepresentation) {
         #expect(JSONSchema(json: json) == nil)
     }
 
     @Test func rejectsDuplicateKeys() {
-        let duplicateKeyword: JSON = .object([(key: "type", value: "string"), (key: "type", value: "integer")])
-        let duplicateProperty: JSON = [
+        let duplicateKeyword: JSONRepresentation = .object([(key: "type", value: "string"), (key: "type", value: "integer")])
+        let duplicateProperty: JSONRepresentation = [
             "type": "object",
             "properties": .object([(key: "a", value: ["type": "string"]), (key: "a", value: ["type": "string"])]),
         ]
@@ -206,9 +206,9 @@ import Testing
     }
 
     @Test func rejectsBadRequiredLists() {
-        let unknownName: JSON = ["type": "object", "properties": ["a": ["type": "string"]], "required": ["b"]]
-        let repeatedName: JSON = ["type": "object", "properties": ["a": ["type": "string"]], "required": ["a", "a"]]
-        let notStrings: JSON = ["type": "object", "properties": ["a": ["type": "string"]], "required": [1]]
+        let unknownName: JSONRepresentation = ["type": "object", "properties": ["a": ["type": "string"]], "required": ["b"]]
+        let repeatedName: JSONRepresentation = ["type": "object", "properties": ["a": ["type": "string"]], "required": ["a", "a"]]
+        let notStrings: JSONRepresentation = ["type": "object", "properties": ["a": ["type": "string"]], "required": [1]]
         #expect(JSONSchema(json: unknownName) == nil)
         #expect(JSONSchema(json: repeatedName) == nil)
         #expect(JSONSchema(json: notStrings) == nil)
@@ -222,13 +222,13 @@ import Testing
         ["type": "date"],
         "string",
         [],
-    ] as [JSON])
-    func rejectsShapesItDoesNotWrite(_ json: JSON) {
+    ] as [JSONRepresentation])
+    func rejectsShapesItDoesNotWrite(_ json: JSONRepresentation) {
         #expect(JSONSchema(json: json) == nil)
     }
 
     @Test func emptyRequiredListIsAccepted() {
-        let json: JSON = ["type": "object", "properties": ["a": ["type": "string"]], "required": []]
+        let json: JSONRepresentation = ["type": "object", "properties": ["a": ["type": "string"]], "required": []]
         #expect(JSONSchema(json: json) == .object([(key: "a", value: .optional(.string))]))
     }
 

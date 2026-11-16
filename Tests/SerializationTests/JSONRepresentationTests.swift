@@ -3,17 +3,17 @@ import Testing
 
 @Suite struct JSONLiteralTests {
     @Test func scalars() {
-        #expect((nil as JSON) == .null)
-        #expect((true as JSON) == .bool(true))
-        #expect((36 as JSON) == .number("36"))
-        #expect((9.5 as JSON) == .number("9.5"))
-        #expect((8.0 as JSON) == .number("8"))
-        #expect(("Ada" as JSON) == .string("Ada"))
+        #expect((nil as JSONRepresentation) == .null)
+        #expect((true as JSONRepresentation) == .bool(true))
+        #expect((36 as JSONRepresentation) == .number("36"))
+        #expect((9.5 as JSONRepresentation) == .number("9.5"))
+        #expect((8.0 as JSONRepresentation) == .number("8"))
+        #expect(("Ada" as JSONRepresentation) == .string("Ada"))
     }
 
     @Test func multipleProperties() {
-        let person: JSON = ["name": "Ada", "age": 36, "active": true, "nickname": nil]
-        let expected: JSON = .object([
+        let person: JSONRepresentation = ["name": "Ada", "age": 36, "active": true, "nickname": nil]
+        let expected: JSONRepresentation = .object([
             (key: "name", value: .string("Ada")),
             (key: "age", value: .number("36")),
             (key: "active", value: .bool(true)),
@@ -23,7 +23,7 @@ import Testing
     }
 
     @Test func nested() {
-        let project: JSON = [
+        let project: JSONRepresentation = [
             "id": 7,
             "owner": ["name": "Ada", "address": ["city": "London", "zip": "N1"]],
             "tags": ["swift", "json"],
@@ -35,7 +35,7 @@ import Testing
     }
 
     @Test func objectKeysKeepInsertionOrder() {
-        let json: JSON = ["zeta": 1, "alpha": 2, "mid": 3]
+        let json: JSONRepresentation = ["zeta": 1, "alpha": 2, "mid": 3]
         guard case .object(let object) = json else {
             Issue.record("Expected an object")
             return
@@ -46,32 +46,32 @@ import Testing
 
 @Suite struct JSONHashableTests {
     @Test func objectEqualityDependsOnOrder() {
-        let first: JSON = ["a": 1, "b": 2]
-        let second: JSON = ["b": 2, "a": 1]
+        let first: JSONRepresentation = ["a": 1, "b": 2]
+        let second: JSONRepresentation = ["b": 2, "a": 1]
         #expect(first != second)
     }
 
     @Test func differentKindsAreNotEqual() {
-        #expect(JSON.string("1") != JSON.number("1"))
-        #expect(JSON.array([]) != JSON.object([]))
+        #expect(JSONRepresentation.string("1") != JSONRepresentation.number("1"))
+        #expect(JSONRepresentation.array([]) != JSONRepresentation.object([]))
     }
 
     @Test func equalValuesHashEqually() {
-        let values: Set<JSON> = [["a": [1, 2]], ["a": [1, 2]], ["a": [2, 1]]]
+        let values: Set<JSONRepresentation> = [["a": [1, 2]], ["a": [1, 2]], ["a": [2, 1]]]
         #expect(values.count == 2)
     }
 }
 
 @Suite struct JSONSubscriptTests {
     @Test func missingKeyOrWrongKindIsNil() {
-        let json: JSON = ["a": [1, 2]]
+        let json: JSONRepresentation = ["a": [1, 2]]
         #expect(json["b"] == nil)
         #expect(json[0] == nil)
         #expect(json["a"]?["x"] == nil)
     }
 
     @Test func outOfBoundsIndexIsNil() {
-        let json: JSON = [1, 2]
+        let json: JSONRepresentation = [1, 2]
         #expect(json[2] == nil)
         #expect(json[-1] == nil)
     }

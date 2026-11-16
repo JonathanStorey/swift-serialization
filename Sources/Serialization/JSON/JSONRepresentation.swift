@@ -7,22 +7,22 @@
 ///
 /// An object is stored as key-value pairs in insertion order, using the same
 /// tuple labels as `Dictionary.Element`.
-public enum JSON: Sendable {
-    public typealias Object = [(key: String, value: JSON)]
+public enum JSONRepresentation: Sendable {
+    public typealias Object = [(key: String, value: JSONRepresentation)]
 
     case null
     case bool(Bool)
     case number(String)
     case string(String)
-    case array([JSON])
+    case array([JSONRepresentation])
     case object(Object)
 }
 
 // Tuples cannot conform to protocols, so `Equatable` and `Hashable` are
 // written by hand. Objects compare in order: the same pairs in a different
 // order are not equal.
-extension JSON: Hashable {
-    public static func == (lhs: JSON, rhs: JSON) -> Bool {
+extension JSONRepresentation: Hashable {
+    public static func == (lhs: JSONRepresentation, rhs: JSONRepresentation) -> Bool {
         switch (lhs, rhs) {
         case (.null, .null): true
         case let (.bool(l), .bool(r)): l == r

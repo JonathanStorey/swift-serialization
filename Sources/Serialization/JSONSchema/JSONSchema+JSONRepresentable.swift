@@ -8,7 +8,7 @@
 /// Anything it cannot represent fails instead of being dropped: an unknown
 /// keyword, a duplicate key, or a `required` name with no matching property.
 extension JSONSchema: JSONRepresentable {
-    public init?(json: JSON) {
+    public init?(json: JSONRepresentation) {
         guard case .object(let object) = json else { return nil }
         let keys = object.map(\.key)
         guard Set(keys).count == keys.count else { return nil }
@@ -48,7 +48,7 @@ extension JSONSchema: JSONRepresentable {
         self = schema
     }
 
-    public var json: JSON {
+    public var json: JSONRepresentation {
         switch self {
         case .null: return ["type": "null"]
         case .boolean: return ["type": "boolean"]
@@ -58,11 +58,11 @@ extension JSONSchema: JSONRepresentable {
         case .array(let items): return ["type": "array", "items": items.json]
         case .optional(let wrapped): return ["anyOf": [wrapped.json, Self.null.json]]
         case .object(let properties):
-            var object: JSON.Object = [
+            var object: JSONRepresentation.Object = [
                 (key: "type", value: "object"),
                 (key: "properties", value: .object(properties.map { (key: $0.key, value: $0.value.propertySchema.json) })),
             ]
-            let required = properties.filter { !$0.value.isOptional }.map { JSON.string($0.key) }
+            let required = properties.filter { !$0.value.isOptional }.map { JSONRepresentation.string($0.key) }
             if !required.isEmpty {
                 object.append((key: "required", value: .array(required)))
             }
@@ -74,7 +74,7 @@ extension JSONSchema: JSONRepresentable {
 private extension JSONSchema {
     /// Reads `properties` and `required` from an object schema. A property
     /// missing from `required` becomes ``JSONSchema/optional(_:)``.
-    static func properties(from json: JSON) -> Properties? {
+    static func properties(from json: JSONRepresentation) -> Properties? {
         guard case .object(let object) = json["properties"] ?? [:],
               let required = [String](json: json["required"] ?? [])
         else { return nil }
