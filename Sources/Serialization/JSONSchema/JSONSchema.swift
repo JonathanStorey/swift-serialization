@@ -16,13 +16,23 @@ public indirect enum JSONSchema: Sendable {
     /// the only values permitted, and `nil` permits any string.
     case string(cases: Set<String>? = nil)
     case array(JSONSchema)
+    /// An object. Property names must be unique, and writing ``json`` checks
+    /// this in debug builds.
     case object(Properties)
+    /// A value that may also be `null`, or a property that may be missing.
+    /// Nested optionals mean the same as one, as with `Int??` in JSON, so
+    /// `.optional(.optional(x))` equals, hashes and writes as `.optional(x)`.
     case optional(JSONSchema)
 }
 
 extension JSONSchema {
     var isOptional: Bool {
         if case .optional = self { true } else { false }
+    }
+
+    /// The schema with nested optionals collapsed to one.
+    var flattened: JSONSchema {
+        if case .optional(.optional(let inner)) = self { JSONSchema.optional(inner).flattened } else { self }
     }
 }
 
@@ -31,7 +41,7 @@ extension JSONSchema {
 // `Dictionary`.
 extension JSONSchema: Hashable {
     public static func == (lhs: JSONSchema, rhs: JSONSchema) -> Bool {
-        switch (lhs, rhs) {
+        switch (lhs.flattened, rhs.flattened) {
         case (.null, .null), (.boolean, .boolean), (.number, .number): true
         case let (.integer(l), .integer(r)): l == r
         case let (.string(l), .string(r)): l == r
@@ -43,7 +53,7 @@ extension JSONSchema: Hashable {
     }
 
     public func hash(into hasher: inout Hasher) {
-        switch self {
+        switch flattened {
         case .null: hasher.combine(0)
         case .boolean: hasher.combine(1)
         case .integer(let cases):

@@ -93,7 +93,7 @@ import Testing
         (.object([(key: "a", value: .string())]), .object([(key: "a", value: .string()), (key: "b", value: .string())])),
         (.integer(), .number),
         (.array(.string()), .array(.optional(.string()))),
-        (.optional(.optional(.string())), .optional(.string())),
+        (.optional(.null), .null),
         (.object([]), .array(.null)),
     ] as [(JSONSchema, JSONSchema)])
     func differentSchemasAreNotEqual(_ pair: (JSONSchema, JSONSchema)) {
@@ -108,6 +108,22 @@ import Testing
         #expect(schemas.count == 24)
         #expect(schemas.allSatisfy { $0 == schemas[0] })
         #expect(Set(schemas).count == 1)
+    }
+
+    @Test func nestedOptionalsEqualOne() {
+        let nested: JSONSchema = .optional(.optional(.optional(.string())))
+        let single: JSONSchema = .optional(.string())
+        #expect(nested == single)
+        #expect(nested.hashValue == single.hashValue)
+        #expect(nested.json == single.json)
+        #expect(nested.id == single.id)
+        #expect(JSONSchema(json: nested.json) == single)
+
+        let nestedProperty: JSONSchema = .object([(key: "a", value: .optional(.optional(.integer())))])
+        let singleProperty: JSONSchema = .object([(key: "a", value: .optional(.integer()))])
+        #expect(nestedProperty == singleProperty)
+        #expect(nestedProperty.json == singleProperty.json)
+        #expect(JSONSchema.array(.optional(.optional(.number))) == .array(.optional(.number)))
     }
 
     @Test func equalSchemasWriteEqualJSON() {

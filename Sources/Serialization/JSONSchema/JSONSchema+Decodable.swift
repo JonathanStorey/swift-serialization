@@ -55,6 +55,9 @@ private final class SchemaRecorder: Decoder {
     var userInfo: [CodingUserInfoKey: Any] { [:] }
     var kind: Kind = .unknown
     var isOptional = false
+    /// Keys checked with `contains(_:)`. A type that checks for a key before
+    /// decoding it treats the key as optional.
+    var checkedKeys: Set<String> = []
 
     init(codingPath: [any CodingKey], context: Context) {
         self.codingPath = codingPath
@@ -174,7 +177,11 @@ extension SchemaRecorder {
             guard !readsAllKeys else {
                 throw unsupported("The keys are read at runtime, as Dictionary does. JSONSchema has no case for objects with arbitrary keys.")
             }
-            base = .object(try properties.map { (key: $0.key, value: try $0.recorder.schema()) })
+            base = .object(try properties.map { property in
+                let schema = try property.recorder.schema()
+                let isChecked = checkedKeys.contains(property.key) && !schema.isOptional
+                return (key: property.key, value: isChecked ? .optional(schema) : schema)
+            })
         case .array(let element):
             guard let element else { throw unsupported("No array element was decoded.") }
             base = .array(try element.schema())
@@ -248,7 +255,12 @@ private struct KeyedRecorder<Key: CodingKey>: KeyedDecodingContainerProtocol {
         return []
     }
 
-    func contains(_ key: Key) -> Bool { true }
+    /// Reports every key as present so its type is still recorded, and
+    /// remembers the check so the property is recorded as optional.
+    func contains(_ key: Key) -> Bool {
+        recorder.checkedKeys.insert(key.stringValue)
+        return true
+    }
 
     /// Called by `decodeIfPresent` before it decodes. Marks the property
     /// optional and reports a value so the wrapped type is still recorded.

@@ -150,6 +150,32 @@ private struct HoldsCustomError: Decodable {
     var inner: ThrowsCustomError
 }
 
+/// Checks for keys with `contains(_:)` instead of `decodeIfPresent`.
+private struct ChecksKeys: Codable {
+    var name: String
+    var nickname: String?
+
+    private enum CodingKeys: String, CodingKey { case name, nickname, legacy }
+
+    init(name: String, nickname: String?) {
+        self.name = name
+        self.nickname = nickname
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        name = try container.decode(String.self, forKey: .name)
+        nickname = try container.contains(.nickname) ? container.decode(String.self, forKey: .nickname) : nil
+        _ = container.contains(.legacy)
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(nickname, forKey: .nickname)
+    }
+}
+
 // Large fixture for the scale test: 8 × 8 × 8 leaf properties.
 private struct Leaf: Codable {
     var a: String, b: Int, c: Double, d: Bool, e: String?, f: [Int], g: Int?, h: [String?]
@@ -259,6 +285,15 @@ private struct Trunk: Codable {
         } catch {
             Issue.record("Unexpected error: \(error)")
         }
+    }
+
+    @Test func keysCheckedWithContainsAreOptional() throws {
+        let expected: JSONSchema = .object([(key: "name", value: .string()), (key: "nickname", value: .optional(.string()))])
+        #expect(try JSONSchema(for: ChecksKeys.self) == expected)
+
+        // JSONDecoder agrees that the key may be missing.
+        let data = try JSONEncoder().encode(ChecksKeys(name: "a", nickname: nil))
+        #expect(try JSONDecoder().decode(ChecksKeys.self, from: data).nickname == nil)
     }
 
     @Test func largeTypesRecordQuickly() throws {
