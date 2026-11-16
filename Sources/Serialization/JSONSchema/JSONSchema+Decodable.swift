@@ -155,7 +155,7 @@ extension SchemaRecorder {
     func element() throws -> SchemaRecorder {
         try beginArray()
         if case .array(let element?) = kind { return element }
-        let element = SchemaRecorder(codingPath: codingPath + [AnyCodingKey(stringValue: "Index 0")], context: context)
+        let element = SchemaRecorder(codingPath: codingPath + [JSONRepresentation.Path.Component.index(0)], context: context)
         kind = .array(element)
         return element
     }
@@ -297,7 +297,7 @@ private struct KeyedRecorder<Key: CodingKey>: KeyedDecodingContainerProtocol {
     }
 
     func superDecoder() throws -> any Decoder {
-        try recorder.child(for: AnyCodingKey(stringValue: "super"))
+        try recorder.child(for: JSONRepresentation.Path.Component.key("super"))
     }
 
     func superDecoder(forKey key: Key) throws -> any Decoder {
