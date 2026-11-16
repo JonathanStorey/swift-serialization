@@ -26,7 +26,7 @@ import Testing
                 "nickname": ["type": "string"],
                 "scores": ["type": "array", "items": ["type": "number"]],
             ],
-            "required": ["name", "age", "scores"],
+            "required": ["age", "name", "scores"],
         ]
         #expect(person.json == expected)
     }

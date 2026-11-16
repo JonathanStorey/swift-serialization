@@ -110,7 +110,7 @@ import Testing
         #expect(Set(schemas).count == 1)
     }
 
-    @Test func equalSchemasCanWriteDifferentText() {
+    @Test func equalSchemasWriteEqualJSON() {
         let first: JSONSchema = .object([(key: "a", value: .string), (key: "b", value: .string)])
         let second: JSONSchema = .object([(key: "b", value: .string), (key: "a", value: .string)])
         #expect(first == second)
