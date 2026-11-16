@@ -5,12 +5,15 @@
 /// schemas write equal JSON. Anywhere else, an optional schema is written
 /// as `{"anyOf": [<wrapped>, {"type": "null"}]}`.
 ///
-/// `init?(json:)` reads exactly the subset of JSON Schema that `json(_:)`
-/// writes in either ``Style``. Anything it cannot represent fails instead of
-/// being dropped: an unknown keyword, a duplicate key, or a `required` name
-/// with no matching property.
-extension JSONSchema: JSONRepresentable {
-    public init?(json: JSONRepresentation) {
+/// Schemas come from types through `JSONSchema(for:)`. A stored schema is
+/// read back with `Codable`, which uses the internal `init?(json:)`. That
+/// initializer reads exactly the subset of JSON Schema that `json(_:)`
+/// writes in either ``Style``, so it restores schemas this library wrote
+/// rather than importing arbitrary ones. Anything it cannot represent fails
+/// instead of being dropped: an unknown keyword, a duplicate key, or a
+/// `required` name with no matching property.
+extension JSONSchema {
+    init?(json: JSONRepresentation) {
         guard case .object(let object) = json else { return nil }
         let keys = object.map(\.key)
         guard Set(keys).count == keys.count else { return nil }
@@ -58,7 +61,7 @@ extension JSONSchema: JSONRepresentable {
     }
 
     /// The schema in the ``Style/standard`` style.
-    public var json: JSONRepresentation {
+    var json: JSONRepresentation {
         json(.standard)
     }
 }

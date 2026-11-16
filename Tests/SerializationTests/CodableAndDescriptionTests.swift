@@ -110,6 +110,22 @@ import Testing
         #expect(decoded == schema)
     }
 
+    @Test func strictSchemaTextDecodes() throws {
+        let schema: JSONSchema = .object([(key: "name", value: .string()), (key: "nickname", value: .optional(.string()))])
+        let text = Data(schema.json(.strict).description.utf8)
+        #expect(try JSONDecoder().decode(JSONSchema.self, from: text) == schema)
+    }
+
+    @Test func storedSchemaChecksCompatibility() throws {
+        struct Record: Codable { var schema: JSONSchema; var payload: Data }
+        struct V1: Codable { var name: String }
+        struct V2: Codable { var name: String; var nickname: String? }
+
+        let saved = try JSONEncoder().encode(Record(schema: JSONSchema(for: V1.self), payload: Data()))
+        let restored = try JSONDecoder().decode(Record.self, from: saved)
+        #expect(try JSONSchema(for: V2.self).isSuperset(of: restored.schema))
+    }
+
     @Test func schemaDecodingRejectsUnsupportedSchemas() {
         #expect(throws: DecodingError.self) {
             try JSONDecoder().decode(JSONSchema.self, from: Data(#"{"type":"string","minLength":1}"#.utf8))

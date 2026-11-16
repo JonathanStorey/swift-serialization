@@ -16,7 +16,7 @@ public indirect enum JSONSchema: Sendable {
     /// the only values permitted, and `nil` permits any string.
     case string(cases: Set<String>? = nil)
     case array(JSONSchema)
-    /// An object. Property names must be unique, and writing ``json`` checks
+    /// An object. Property names must be unique, and writing ``json(_:)`` checks
     /// this in debug builds.
     case object(Properties)
     /// A value that may also be `null`, or a property that may be missing.
