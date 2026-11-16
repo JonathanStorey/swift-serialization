@@ -98,8 +98,8 @@ import Testing
         #expect(Double(json: .number("1e3")) == 1000)
         #expect((0.1).json == .number("0.1"))
         #expect((8.0).json == .number("8"))
-        #expect(Double.infinity.json == .null)
-        #expect(Double.nan.json == .null)
+        #expect(Double.infinity.json == .string("Infinity"))
+        #expect(Double.nan.json == .string("NaN"))
         #expect(Double(json: .number("nan")) == nil)
     }
 
