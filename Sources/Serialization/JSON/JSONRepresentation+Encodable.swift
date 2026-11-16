@@ -8,7 +8,8 @@ extension JSONRepresentation {
     /// default strategies: `Date` is seconds since 2001, `Data` is Base64,
     /// `URL` is its absolute string and `Decimal` is a number. Non-finite
     /// floating-point values are written as `"NaN"`, `"Infinity"` and
-    /// `"-Infinity"`, which `decode(_:)` reads back.
+    /// `"-Infinity"`, which `decode(_:)` reads back. `Decimal.nan` has no
+    /// JSON form and throws `EncodingError.invalidValue`.
     public init(_ value: some Encodable) throws {
         let node = EncodingNode()
         try node.encode(value, codingPath: [])
@@ -81,8 +82,11 @@ private final class EncodingNode {
         }
     }
 
+    /// Replaces whatever the node held, so encoding a key twice keeps only
+    /// the second value, as `JSONEncoder` does.
     func encode(_ value: some Encodable, codingPath: [any CodingKey]) throws {
-        if let leaf = Self.leaf(value) {
+        content = .empty
+        if let leaf = try Self.leaf(value, codingPath: codingPath) {
             content = .value(leaf)
         } else {
             try value.encode(to: RepresentationEncoder(node: self, codingPath: codingPath))
@@ -92,7 +96,7 @@ private final class EncodingNode {
     /// Values written directly instead of through their own `encode(to:)`,
     /// either because they are primitives or because `JSONEncoder` writes
     /// them differently from their `Encodable` conformance.
-    static func leaf(_ value: some Encodable) -> JSONRepresentation? {
+    static func leaf(_ value: some Encodable, codingPath: [any CodingKey]) throws -> JSONRepresentation? {
         switch value {
         case let value as JSONRepresentation: value
         case let value as String: .string(value)
@@ -100,6 +104,8 @@ private final class EncodingNode {
         case let value as Bool: .bool(value)
         case let value as Double: value.jsonRepresentation
         case let value as Float: value.jsonRepresentation
+        case let value as Decimal where value.isNaN:
+            throw EncodingError.invalidValue(value, .init(codingPath: codingPath, debugDescription: "Decimal.nan cannot be written as a JSON number."))
         case let value as Decimal: .number(value.description)
         case let value as URL: .string(value.absoluteString)
         case let value as Data: .string(value.base64EncodedString())
@@ -107,8 +113,9 @@ private final class EncodingNode {
         }
     }
 
-    /// The child for `key`, reused when the key was written before so that a
-    /// repeated key replaces its value in place.
+    /// The child for `key`, reused when the key was written before. The key
+    /// keeps its first position. A nested container on a repeated key adds
+    /// to the earlier contents, and an encoded value replaces them.
     func child(forKey key: String) -> EncodingNode {
         guard case .object(var pairs) = content else {
             let child = EncodingNode()
@@ -197,6 +204,10 @@ private struct KeyedWriter<Key: CodingKey>: KeyedEncodingContainerProtocol {
     mutating func encode(_ value: UInt32, forKey key: Key) throws { try write(value, forKey: key) }
     mutating func encode(_ value: UInt64, forKey key: Key) throws { try write(value, forKey: key) }
     mutating func encode<T: Encodable>(_ value: T, forKey key: Key) throws { try write(value, forKey: key) }
+    @available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *)
+    mutating func encode(_ value: Int128, forKey key: Key) throws { try write(value, forKey: key) }
+    @available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *)
+    mutating func encode(_ value: UInt128, forKey key: Key) throws { try write(value, forKey: key) }
 
     mutating func nestedContainer<NestedKey: CodingKey>(keyedBy keyType: NestedKey.Type, forKey key: Key) -> KeyedEncodingContainer<NestedKey> {
         RepresentationEncoder(node: node.child(forKey: key.stringValue), codingPath: codingPath + [key]).container(keyedBy: keyType)
@@ -242,6 +253,10 @@ private struct UnkeyedWriter: UnkeyedEncodingContainer {
     mutating func encode(_ value: UInt32) throws { try write(value) }
     mutating func encode(_ value: UInt64) throws { try write(value) }
     mutating func encode<T: Encodable>(_ value: T) throws { try write(value) }
+    @available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *)
+    mutating func encode(_ value: Int128) throws { try write(value) }
+    @available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *)
+    mutating func encode(_ value: UInt128) throws { try write(value) }
 
     mutating func nestedContainer<NestedKey: CodingKey>(keyedBy keyType: NestedKey.Type) -> KeyedEncodingContainer<NestedKey> {
         let key = AnyCodingKey(stringValue: "Index \(count)")
@@ -283,4 +298,8 @@ private struct SingleValueWriter: SingleValueEncodingContainer {
     mutating func encode(_ value: UInt32) throws { try write(value) }
     mutating func encode(_ value: UInt64) throws { try write(value) }
     mutating func encode<T: Encodable>(_ value: T) throws { try write(value) }
+    @available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *)
+    mutating func encode(_ value: Int128) throws { try write(value) }
+    @available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *)
+    mutating func encode(_ value: UInt128) throws { try write(value) }
 }
