@@ -71,13 +71,13 @@ private typealias Path = JSONRepresentation.Path
 
     @Test func subscriptFollowsThePath() {
         let json: JSONRepresentation = ["rooms": [["name": "A"], ["name": "B"]], "0": "zero"]
-        #expect(json[path: []] == json)
-        #expect(json[path: ["rooms", 1, "name"]] == "B")
-        #expect(json[path: ["0"]] == "zero")
-        #expect(json[path: [0]] == nil)
-        #expect(json[path: ["rooms", 2]] == nil)
-        #expect(json[path: ["rooms", "name"]] == nil)
-        #expect(json[path: ["missing", 0]] == nil)
+        #expect(json[[]] == json)
+        #expect(json[["rooms", 1, "name"]] == "B")
+        #expect(json[["0"]] == "zero")
+        #expect(json[[0]] == nil)
+        #expect(json[["rooms", 2]] == nil)
+        #expect(json[["rooms", "name"]] == nil)
+        #expect(json[["missing", 0]] == nil)
     }
 
     /// Paths and decoding errors describe locations the same way.
@@ -91,7 +91,7 @@ private typealias Path = JSONRepresentation.Path
         } catch DecodingError.typeMismatch(_, let context) {
             let path = Path(context.codingPath.map { key in key.intValue.map(Path.Segment.index) ?? .key(key.stringValue) })
             #expect(path == ["rooms", 1, "name"])
-            #expect(json[path: path] == 2)
+            #expect(json[path] == 2)
         }
     }
 }

@@ -97,7 +97,7 @@ extension JSONRepresentation {
     /// The value at `path`, or `nil` when a key is missing, an index is out of
     /// bounds, or a segment does not match the value's type. An empty path
     /// returns the value itself.
-    public subscript(path path: Path) -> JSONRepresentation? {
+    public subscript(path: Path) -> JSONRepresentation? {
         var value: JSONRepresentation? = self
         for segment in path {
             value = switch segment {
