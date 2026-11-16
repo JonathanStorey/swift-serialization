@@ -1,6 +1,8 @@
 extension JSONRepresentation {
-    /// The value for the first pair named `key` when this is an object,
-    /// otherwise `nil`.
+    /// The value for `key` when this is an object, otherwise `nil`.
+    ///
+    /// Keys are unique in any value built by `init(_:)` or decoded through
+    /// `Codable`. A hand-built object with a repeated key returns the first.
     public subscript(key: String) -> JSONRepresentation? {
         guard case .object(let object) = self else { return nil }
         return object.first { $0.key == key }?.value

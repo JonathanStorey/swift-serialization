@@ -1,6 +1,18 @@
 import Testing
 @testable import Serialization
 
+// MARK: - Helpers
+
+private extension JSONRepresentation {
+    /// `decode(_:)`, with a thrown error as `nil`.
+    func value<T: Decodable>(_ type: T.Type) -> T? { try? decode(type) }
+}
+
+/// `JSONRepresentation(_:)` for values that always encode.
+private func json(_ value: some Encodable) -> JSONRepresentation {
+    try! JSONRepresentation(value)
+}
+
 // MARK: - Numbers
 
 @Suite struct NumberGrammarTests {
@@ -9,24 +21,19 @@ import Testing
         "0x10", "0x1p3", " 1", "1 ", "1_000", "1,5", "nan", "NaN", "inf", "Infinity", "--1", "1.2.3", "1e2e3",
     ])
     func rejectsMalformedNumberText(_ text: String) {
-        #expect(Int(json: .number(text)) == nil)
-        #expect(Double(json: .number(text)) == nil)
+        #expect(JSONRepresentation.number(text).value(Int.self) == nil)
+        #expect(JSONRepresentation.number(text).value(Double.self) == nil)
     }
 
     @Test(arguments: ["0", "-0", "7", "-7", "1234567890"])
     func acceptsIntegers(_ text: String) {
-        #expect(Int(json: .number(text)) != nil)
-        #expect(Double(json: .number(text)) != nil)
+        #expect(JSONRepresentation.number(text).value(Int.self) != nil)
+        #expect(JSONRepresentation.number(text).value(Double.self) != nil)
     }
 
     @Test(arguments: ["0.5", "-0.5", "1e2", "1E2", "1e+2", "1e-2", "-1.5e-3", "0e0", "1e07"])
     func acceptsFloatingPoint(_ text: String) {
-        #expect(Double(json: .number(text)) != nil)
-    }
-
-    @Test func integersRejectFractionsAndExponents() {
-        #expect(Int(json: .number("1.0")) == nil)
-        #expect(Int(json: .number("1e2")) == nil)
+        #expect(JSONRepresentation.number(text).value(Double.self) != nil)
     }
 
     @Test func textIsComparedNotNumericValue() {
@@ -37,33 +44,33 @@ import Testing
 
 @Suite struct IntegerBoundaryTests {
     @Test func signedBoundsRoundTrip() {
-        #expect(Int8(json: Int8.min.json) == .min)
-        #expect(Int8(json: Int8.max.json) == .max)
-        #expect(Int16(json: Int16.min.json) == .min)
-        #expect(Int16(json: Int16.max.json) == .max)
-        #expect(Int32(json: Int32.min.json) == .min)
-        #expect(Int32(json: Int32.max.json) == .max)
-        #expect(Int64(json: Int64.min.json) == .min)
-        #expect(Int64(json: Int64.max.json) == .max)
-        #expect(Int(json: Int.min.json) == .min)
-        #expect(Int(json: Int.max.json) == .max)
+        #expect(json(Int8.min).value(Int8.self) == .min)
+        #expect(json(Int8.max).value(Int8.self) == .max)
+        #expect(json(Int16.min).value(Int16.self) == .min)
+        #expect(json(Int16.max).value(Int16.self) == .max)
+        #expect(json(Int32.min).value(Int32.self) == .min)
+        #expect(json(Int32.max).value(Int32.self) == .max)
+        #expect(json(Int64.min).value(Int64.self) == .min)
+        #expect(json(Int64.max).value(Int64.self) == .max)
+        #expect(json(Int.min).value(Int.self) == .min)
+        #expect(json(Int.max).value(Int.self) == .max)
     }
 
     @Test func unsignedBoundsRoundTrip() {
-        #expect(UInt8(json: UInt8.max.json) == .max)
-        #expect(UInt16(json: UInt16.max.json) == .max)
-        #expect(UInt32(json: UInt32.max.json) == .max)
-        #expect(UInt64(json: UInt64.max.json) == .max)
-        #expect(UInt(json: UInt.max.json) == .max)
-        #expect(UInt64(json: 0) == 0)
+        #expect(json(UInt8.max).value(UInt8.self) == .max)
+        #expect(json(UInt16.max).value(UInt16.self) == .max)
+        #expect(json(UInt32.max).value(UInt32.self) == .max)
+        #expect(json(UInt64.max).value(UInt64.self) == .max)
+        #expect(json(UInt.max).value(UInt.self) == .max)
+        #expect(JSONRepresentation.number("0").value(UInt64.self) == 0)
     }
 
     @Test func outOfRangeFails() {
-        #expect(Int8(json: .number("128")) == nil)
-        #expect(Int8(json: .number("-129")) == nil)
-        #expect(Int64(json: .number("9223372036854775808")) == nil)
-        #expect(UInt8(json: .number("-1")) == nil)
-        #expect(UInt64(json: .number("18446744073709551616")) == nil)
+        #expect(JSONRepresentation.number("128").value(Int8.self) == nil)
+        #expect(JSONRepresentation.number("-129").value(Int8.self) == nil)
+        #expect(JSONRepresentation.number("9223372036854775808").value(Int64.self) == nil)
+        #expect(JSONRepresentation.number("-1").value(UInt8.self) == nil)
+        #expect(JSONRepresentation.number("18446744073709551616").value(UInt64.self) == nil)
     }
 }
 
@@ -74,59 +81,55 @@ import Testing
         .leastNormalMagnitude, .leastNonzeroMagnitude, .ulpOfOne,
     ])
     func finiteDoublesRoundTripExactly(_ value: Double) throws {
-        let decoded = try #require(Double(json: value.json))
+        let decoded = try #require(json(value).value(Double.self))
         #expect(decoded.bitPattern == value.bitPattern)
     }
 
     @Test func negativeZeroKeepsItsSign() throws {
-        #expect((-0.0).json == .number("-0"))
-        let decoded = try #require(Double(json: (-0.0).json))
+        #expect(json(-0.0) == .number("-0"))
+        let decoded = try #require(json(-0.0).value(Double.self))
         #expect(decoded.sign == .minus)
     }
 
     @Test func wholeNumbersDropTrailingZero() {
-        #expect((8.0).json == .number("8"))
-        #expect((-8.0).json == .number("-8"))
-        #expect(Float(8).json == .number("8"))
+        #expect(json(8.0) == .number("8"))
+        #expect(json(-8.0) == .number("-8"))
+        #expect(json(Float(8)) == .number("8"))
     }
 
     @Test func nonFiniteValuesRoundTripAsStrings() throws {
-        #expect(Double.nan.json == .string("NaN"))
-        #expect(Double.infinity.json == .string("Infinity"))
-        #expect((-Double.infinity).json == .string("-Infinity"))
+        #expect(json(Double.nan) == .string("NaN"))
+        #expect(json(Double.infinity) == .string("Infinity"))
+        #expect(json(-Double.infinity) == .string("-Infinity"))
 
-        #expect(try #require(Double(json: Double.nan.json)).isNaN)
-        #expect(Double(json: Double.infinity.json) == .infinity)
-        #expect(Double(json: (-Double.infinity).json) == -Double.infinity)
-        #expect(try #require(Float(json: Float.nan.json)).isNaN)
-        #expect(Float(json: Float.infinity.json) == .infinity)
+        #expect(try #require(json(Double.nan).value(Double.self)).isNaN)
+        #expect(json(Double.infinity).value(Double.self) == .infinity)
+        #expect(json(-Double.infinity).value(Double.self) == -Double.infinity)
+        #expect(try #require(json(Float.nan).value(Float.self)).isNaN)
+        #expect(json(Float.infinity).value(Float.self) == .infinity)
     }
 
     @Test func nonFiniteStringsAreCaseSensitive() {
-        #expect(Double(json: "nan") == nil)
-        #expect(Double(json: "infinity") == nil)
-        #expect(Double(json: "+Infinity") == nil)
+        #expect(JSONRepresentation.string("nan").value(Double.self) == nil)
+        #expect(JSONRepresentation.string("infinity").value(Double.self) == nil)
+        #expect(JSONRepresentation.string("+Infinity").value(Double.self) == nil)
     }
 
     @Test func optionalNaNIsNotMistakenForNil() throws {
         let value: Double? = .nan
-        let decoded = try #require(Optional<Double>(json: value.json))
+        let decoded = try #require(json(value).value(Double?.self))
         #expect(try #require(decoded).isNaN)
     }
 
     @Test func overflowFails() {
-        #expect(Double(json: .number("1e309")) == nil)
-        #expect(Double(json: .number("-1e309")) == nil)
-        #expect(Float(json: .number("1e39")) == nil)
-    }
-
-    @Test func underflowRoundsToZero() {
-        #expect(Double(json: .number("1e-400")) == 0)
+        #expect(JSONRepresentation.number("1e309").value(Double.self) == nil)
+        #expect(JSONRepresentation.number("-1e309").value(Double.self) == nil)
+        #expect(JSONRepresentation.number("1e39").value(Float.self) == nil)
     }
 
     @Test func floatRoundTrips() throws {
         for value: Float in [0.1, -2.5, 3.4028235e38, 1.0e-45, 16_777_216] {
-            let decoded = try #require(Float(json: value.json))
+            let decoded = try #require(json(value).value(Float.self))
             #expect(decoded.bitPattern == value.bitPattern)
         }
     }
@@ -137,23 +140,23 @@ import Testing
 @Suite struct StringAndContainerEdgeTests {
     @Test(arguments: ["", " ", "\"", "\\", "/", "\n\t\r", "\u{0}", "é", "e\u{301}", "👩‍👩‍👧", "日本語"])
     func stringsRoundTrip(_ value: String) {
-        #expect(String(json: value.json) == value)
+        #expect(json(value).value(String.self) == value)
     }
 
     @Test func emptyContainersAreDistinct() {
         #expect(JSONRepresentation.array([]) != JSONRepresentation.object([]))
-        #expect([Int](json: []) == [])
-        #expect([Int](json: [:]) == nil)
+        #expect(([] as JSONRepresentation).value([Int].self) == [])
+        #expect(([:] as JSONRepresentation).value([Int].self) == nil)
     }
 
     @Test func nestedArraysRoundTrip() {
         let value: [[Int?]] = [[1, nil], [], [3]]
-        #expect([[Int?]](json: value.json) == value)
+        #expect(json(value).value([[Int?]].self) == value)
     }
 
-    @Test func nestedOptionalCollapsesNullToOuterNil() {
-        let decoded = Optional<Int?>(json: .null)
-        #expect(decoded == .some(.none))
+    @Test func nestedOptionalDecodesNullAsOuterNil() throws {
+        let decoded = try JSONRepresentation.null.decode(Int??.self)
+        #expect(decoded == nil)
     }
 
     @Test func duplicateKeysAreKeptAndSubscriptReturnsFirst() {

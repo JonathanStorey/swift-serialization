@@ -2,8 +2,11 @@
 ///
 /// The cases mirror the value model used by Foundation's `JSONEncoder` and
 /// `JSONDecoder`. A number keeps its original text so that no precision is
-/// lost. It is converted to a concrete numeric type only when one is
-/// requested through ``JSONRepresentable``.
+/// lost. It is converted to a concrete numeric type only when a value is
+/// read with ``decode(_:)``.
+///
+/// Build one from any `Encodable` value with ``init(_:)``, or by hand with
+/// literals.
 ///
 /// An object is stored as key-value pairs in insertion order, using the same
 /// tuple labels as `Dictionary.Element`.

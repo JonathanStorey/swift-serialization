@@ -66,7 +66,7 @@ import Testing
     }
 
     @Test func largeUnsignedIntegersKeepFullPrecision() throws {
-        let value = UInt64.max.json
+        let value = try JSONRepresentation(UInt64.max)
         let decoded = try JSONDecoder().decode(JSONRepresentation.self, from: JSONEncoder().encode(value))
         #expect(decoded == value)
     }
