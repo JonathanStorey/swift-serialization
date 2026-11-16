@@ -103,7 +103,7 @@ extension JSONRepresentation {
     /// Writing follows `Dictionary` and optional chaining:
     /// - A value replaces the one at `path`, and a missing final key is added
     ///   at the end of its object.
-    /// - `nil` removes the final key.
+    /// - `nil` removes the final key. Assign `.null` to store a JSON null.
     /// - When the rest of the path does not exist, nothing changes.
     /// - An index only replaces an element in bounds. Inserting and removing
     ///   elements shifts later indices, so `nil` never removes one.
