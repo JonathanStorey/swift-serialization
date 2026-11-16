@@ -285,6 +285,35 @@ import Testing
         #expect(try JSONRepresentation(byDouble).decode([Double: String].self) == byDouble)
     }
 
+    @Test func decimalNaNThrows() {
+        struct Price: Encodable { var amount = Decimal.nan }
+        #expect(throws: EncodingError.self) { try JSONRepresentation(Decimal.nan) }
+        #expect(throws: EncodingError.self) { try JSONRepresentation(Price()) }
+    }
+
+    /// The standard library's default `Int128` overloads throw, so every
+    /// container must implement them.
+    @available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *)
+    @Test func int128InEveryContainer() throws {
+        struct Wide: Encodable {
+            var low = Int128.min
+            var high = [UInt128.max]
+            var single = Single()
+        }
+        struct Single: Encodable {
+            func encode(to encoder: any Encoder) throws {
+                var container = encoder.singleValueContainer()
+                try container.encode(Int128(1) << 100)
+            }
+        }
+        let expected: JSONRepresentation = [
+            "low": .number("-170141183460469231731687303715884105728"),
+            "high": [.number("340282366920938463463374607431768211455")],
+            "single": .number("1267650600228229401496703205376"),
+        ]
+        #expect(try JSONRepresentation(Wide()) == expected)
+    }
+
     @Test func emptyEncodingThrows() {
         struct Nothing: Encodable { func encode(to encoder: any Encoder) throws {} }
         #expect(throws: EncodingError.self) { try JSONRepresentation(Nothing()) }
