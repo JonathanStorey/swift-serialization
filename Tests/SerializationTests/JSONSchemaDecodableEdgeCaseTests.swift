@@ -165,7 +165,7 @@ private struct ChecksKeys: Codable {
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         name = try container.decode(String.self, forKey: .name)
-        nickname = container.contains(.nickname) ? try container.decode(String.self, forKey: .nickname) : nil
+        nickname = try container.contains(.nickname) ? container.decode(String.self, forKey: .nickname) : nil
         _ = container.contains(.legacy)
     }
 
