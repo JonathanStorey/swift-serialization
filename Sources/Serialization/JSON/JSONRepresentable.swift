@@ -1,45 +1,45 @@
-/// A type that can be converted to and from a ``JSON`` value.
+/// A type that can be converted to and from a ``JSONRepresentation`` value.
 ///
 /// The shape follows `RawRepresentable`: a failable initializer and a
 /// read-only property.
 public protocol JSONRepresentable {
-    init?(json: JSON)
-    var json: JSON { get }
+    init?(json: JSONRepresentation)
+    var json: JSONRepresentation { get }
 }
 
-// MARK: - JSON
+// MARK: - JSONRepresentation
 
-extension JSON: JSONRepresentable {
-    public init?(json: JSON) {
+extension JSONRepresentation: JSONRepresentable {
+    public init?(json: JSONRepresentation) {
         self = json
     }
 
-    public var json: JSON { self }
+    public var json: JSONRepresentation { self }
 }
 
 // MARK: - Strings and Booleans
 
 extension String: JSONRepresentable {
-    public init?(json: JSON) {
+    public init?(json: JSONRepresentation) {
         guard case .string(let value) = json else { return nil }
         self = value
     }
 
-    public var json: JSON { .string(self) }
+    public var json: JSONRepresentation { .string(self) }
 }
 
 extension Bool: JSONRepresentable {
-    public init?(json: JSON) {
+    public init?(json: JSONRepresentation) {
         guard case .bool(let value) = json else { return nil }
         self = value
     }
 
-    public var json: JSON { .bool(self) }
+    public var json: JSONRepresentation { .bool(self) }
 }
 
 // MARK: - Numbers
 
-private extension JSON {
+private extension JSONRepresentation {
     /// The text of a number that matches the JSON number grammar, otherwise
     /// `nil`. Swift's numeric parsers accept text JSON does not, such as
     /// `"+1"`, `".5"` and `"0x1p3"`, so the grammar is checked first.
@@ -81,12 +81,12 @@ private extension String {
 }
 
 extension JSONRepresentable where Self: FixedWidthInteger {
-    public init?(json: JSON) {
+    public init?(json: JSONRepresentation) {
         guard let text = json.numberText, let value = Self(text, radix: 10) else { return nil }
         self = value
     }
 
-    public var json: JSON { .number(description) }
+    public var json: JSONRepresentation { .number(description) }
 }
 
 extension Int: JSONRepresentable {}
@@ -103,7 +103,7 @@ extension UInt64: JSONRepresentable {}
 extension JSONRepresentable where Self: BinaryFloatingPoint & LosslessStringConvertible {
     /// Reads a number, or one of the strings `"NaN"`, `"Infinity"` and
     /// `"-Infinity"`. A number too large for the type returns `nil`.
-    public init?(json: JSON) {
+    public init?(json: JSONRepresentation) {
         switch json {
         case .string("NaN"):
             self = .nan
@@ -121,7 +121,7 @@ extension JSONRepresentable where Self: BinaryFloatingPoint & LosslessStringConv
     /// strings `"NaN"`, `"Infinity"` and `"-Infinity"`, matching
     /// `JSONEncoder.NonConformingFloatEncodingStrategy.convertToString`
     /// with those names, so every value round-trips.
-    public var json: JSON {
+    public var json: JSONRepresentation {
         if isNaN { return .string("NaN") }
         if isInfinite { return .string(sign == .minus ? "-Infinity" : "Infinity") }
         return .number(jsonNumberText)
@@ -143,7 +143,7 @@ extension Double: JSONRepresentable {}
 // MARK: - Containers
 
 extension Optional: JSONRepresentable where Wrapped: JSONRepresentable {
-    public init?(json: JSON) {
+    public init?(json: JSONRepresentation) {
         if case .null = json {
             self = nil
             return
@@ -152,16 +152,16 @@ extension Optional: JSONRepresentable where Wrapped: JSONRepresentable {
         self = wrapped
     }
 
-    public var json: JSON { map(\.json) ?? .null }
+    public var json: JSONRepresentation { map(\.json) ?? .null }
 }
 
 extension Array: JSONRepresentable where Element: JSONRepresentable {
-    public init?(json: JSON) {
+    public init?(json: JSONRepresentation) {
         guard case .array(let elements) = json else { return nil }
         let values = elements.compactMap { Element(json: $0) }
         guard values.count == elements.count else { return nil }
         self = values
     }
 
-    public var json: JSON { .array(map(\.json)) }
+    public var json: JSONRepresentation { .array(map(\.json)) }
 }

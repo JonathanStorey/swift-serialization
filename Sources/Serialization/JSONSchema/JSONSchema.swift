@@ -1,6 +1,6 @@
-/// A Swift-first description of the shape of a ``JSON`` value.
+/// A Swift-first description of the shape of a ``JSONRepresentation`` value.
 ///
-/// The cases line up with ``JSON``. Two differences follow Swift rather than
+/// The cases line up with ``JSONRepresentation``. Two differences follow Swift rather than
 /// JSON: `integer` and `number` are separate, and there is no `required`
 /// list. Every property is required unless its schema is ``optional(_:)``.
 public indirect enum JSONSchema: Sendable {
