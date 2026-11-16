@@ -6,6 +6,8 @@
 /// ```
 ///
 /// Paths are JSONPath text, so a decoded difference equals the one encoded.
+/// This is the form to store a difference or send it elsewhere, and
+/// `description` is the form for people to read.
 extension JSONDifference: Codable {
     public init(from decoder: any Decoder) throws {
         var container = try decoder.unkeyedContainer()
