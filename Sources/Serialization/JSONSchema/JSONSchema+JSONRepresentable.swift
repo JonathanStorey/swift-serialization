@@ -1,7 +1,8 @@
 /// Converts to and from standard JSON Schema text.
 ///
 /// An optional property is left out of `required`, matching `JSONEncoder`,
-/// which omits `nil` properties. Anywhere else, an optional schema is written
+/// which omits `nil` properties. `required` is written sorted, so equal
+/// schemas write equal JSON. Anywhere else, an optional schema is written
 /// as `{"anyOf": [<wrapped>, {"type": "null"}]}`.
 ///
 /// `init?(json:)` reads exactly the subset of JSON Schema that `json` writes.
@@ -62,7 +63,9 @@ extension JSONSchema: JSONRepresentable {
                 (key: "type", value: "object"),
                 (key: "properties", value: .object(properties.map { (key: $0.key, value: $0.value.propertySchema.json) })),
             ]
-            let required = properties.filter { !$0.value.isOptional }.map { JSONRepresentation.string($0.key) }
+            // `required` is a set in JSON Schema. Sorting it means equal
+            // schemas, whatever their property order, write equal JSON.
+            let required = properties.filter { !$0.value.isOptional }.map(\.key).sorted().map(JSONRepresentation.string)
             if !required.isEmpty {
                 object.append((key: "required", value: .array(required)))
             }

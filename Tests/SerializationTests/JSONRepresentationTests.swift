@@ -45,10 +45,30 @@ import Testing
 }
 
 @Suite struct JSONHashableTests {
-    @Test func objectEqualityDependsOnOrder() {
+    @Test func objectEqualityIgnoresKeyOrder() {
+        let first: JSONRepresentation = ["a": 1, "b": ["c": true, "d": nil]]
+        let second: JSONRepresentation = ["b": ["d": nil, "c": true], "a": 1]
+        #expect(first == second)
+        #expect(first.hashValue == second.hashValue)
+        #expect(Set([first, second]).count == 1)
+    }
+
+    @Test func storedOrderIsStillKept() {
         let first: JSONRepresentation = ["a": 1, "b": 2]
         let second: JSONRepresentation = ["b": 2, "a": 1]
-        #expect(first != second)
+        #expect(first == second)
+        #expect(first.description != second.description)
+    }
+
+    @Test func objectsWithDifferentContentAreNotEqual() {
+        #expect((["a": 1] as JSONRepresentation) != ["a": 2])
+        #expect((["a": 1] as JSONRepresentation) != ["b": 1])
+        #expect((["a": 1] as JSONRepresentation) != ["a": 1, "b": 2])
+        #expect(JSONRepresentation.object([(key: "a", value: 1), (key: "a", value: 1)]) != ["a": 1])
+    }
+
+    @Test func arraysStayOrdered() {
+        #expect(([1, 2] as JSONRepresentation) != [2, 1])
     }
 
     @Test func differentKindsAreNotEqual() {

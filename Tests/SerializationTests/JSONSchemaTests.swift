@@ -26,7 +26,7 @@ import Testing
                 "nickname": ["type": "string"],
                 "scores": ["type": "array", "items": ["type": "number"]],
             ],
-            "required": ["name", "age", "scores"],
+            "required": ["age", "name", "scores"],
         ]
         #expect(person.json == expected)
     }
@@ -63,11 +63,12 @@ import Testing
         #expect(JSONSchema(json: ["type": "array"]) == nil)
     }
 
-    @Test func propertyOrderMatters() {
-        let reordered: JSONSchema = .object([(key: "b", value: .string), (key: "a", value: .string)])
-        let original: JSONSchema = .object([(key: "a", value: .string), (key: "b", value: .string)])
-        #expect(reordered != original)
-        #expect(Set([original, original, reordered]).count == 2)
+    @Test func propertyOrderIsIgnoredForEquality() {
+        let reordered: JSONSchema = .object([(key: "b", value: .string), (key: "a", value: .optional(.integer))])
+        let original: JSONSchema = .object([(key: "a", value: .optional(.integer)), (key: "b", value: .string)])
+        #expect(reordered == original)
+        #expect(Set([original, original, reordered]).count == 1)
+        #expect(reordered != .object([(key: "a", value: .integer), (key: "b", value: .string)]))
     }
 }
 
