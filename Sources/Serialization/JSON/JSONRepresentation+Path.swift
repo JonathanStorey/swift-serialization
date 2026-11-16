@@ -1,21 +1,22 @@
 extension JSONRepresentation {
     /// The location of a value inside a ``JSONRepresentation``, from the root.
     ///
-    /// A path is a collection of components and can be written as an array
+    /// A path is a collection of segments and can be written as an array
     /// literal, such as `["rooms", 0, "name"]`. Its `description` is a JSONPath
     /// expression (RFC 9535), such as `$.rooms[0].name`, and `init(_:)` reads
     /// that text back.
     public struct Path: Hashable, Sendable {
-        private var components: [Component]
+        private var segments: [Segment]
     }
 }
 
 extension JSONRepresentation.Path {
-    /// One step in a path: an object key or an array index.
+    /// One step in a path, an object key or an array index. RFC 9535 calls
+    /// each `.name` or `[0]` in a JSONPath a segment.
     ///
     /// As a `CodingKey`, an index's `stringValue` is `"Index n"`, as in
     /// Foundation's coding paths, so a path can serve as a `codingPath`.
-    public enum Component: Hashable, Sendable, CodingKey, ExpressibleByStringLiteral, ExpressibleByIntegerLiteral {
+    public enum Segment: Hashable, Sendable, CodingKey, ExpressibleByStringLiteral, ExpressibleByIntegerLiteral {
         case key(String)
         case index(Int)
 
@@ -40,15 +41,15 @@ extension JSONRepresentation.Path {
 // MARK: - Collection
 
 extension JSONRepresentation.Path: RandomAccessCollection, RangeReplaceableCollection, ExpressibleByArrayLiteral {
-    public init() { components = [] }
-    public init(arrayLiteral elements: Component...) { components = elements }
+    public init() { segments = [] }
+    public init(arrayLiteral elements: Segment...) { segments = elements }
 
-    public var startIndex: Int { components.startIndex }
-    public var endIndex: Int { components.endIndex }
-    public subscript(position: Int) -> Component { components[position] }
+    public var startIndex: Int { segments.startIndex }
+    public var endIndex: Int { segments.endIndex }
+    public subscript(position: Int) -> Segment { segments[position] }
 
-    public mutating func replaceSubrange<C: Collection>(_ subrange: Range<Int>, with newElements: C) where C.Element == Component {
-        components.replaceSubrange(subrange, with: newElements)
+    public mutating func replaceSubrange<C: Collection>(_ subrange: Range<Int>, with newElements: C) where C.Element == Segment {
+        segments.replaceSubrange(subrange, with: newElements)
     }
 }
 
@@ -60,8 +61,8 @@ extension JSONRepresentation.Path: LosslessStringConvertible {
     /// with a digit, `['any key']` for any other key, and `[0]` for an index.
     public var description: String {
         var text = "$"
-        for component in components {
-            switch component {
+        for segment in segments {
+            switch segment {
             case .index(let index):
                 text += "[\(index)]"
             case .key(let key) where key.isJSONPathShorthand:
@@ -81,12 +82,12 @@ extension JSONRepresentation.Path: LosslessStringConvertible {
     public init?(_ description: String) {
         var scalars = Substring(description).unicodeScalars
         guard scalars.popFirst() == "$" else { return nil }
-        var components: [Component] = []
+        var segments: [Segment] = []
         while !scalars.isEmpty {
-            guard let component = scalars.popJSONPathComponent() else { return nil }
-            components.append(component)
+            guard let segment = scalars.popJSONPathSegment() else { return nil }
+            segments.append(segment)
         }
-        self.components = components
+        self.segments = segments
     }
 }
 
@@ -94,12 +95,12 @@ extension JSONRepresentation.Path: LosslessStringConvertible {
 
 extension JSONRepresentation {
     /// The value at `path`, or `nil` when a key is missing, an index is out of
-    /// bounds, or a component does not match the value's type. An empty path
+    /// bounds, or a segment does not match the value's type. An empty path
     /// returns the value itself.
     public subscript(path path: Path) -> JSONRepresentation? {
         var value: JSONRepresentation? = self
-        for component in path {
-            value = switch component {
+        for segment in path {
+            value = switch segment {
             case .key(let key): value?[key]
             case .index(let index): value?[index]
             }
@@ -144,7 +145,7 @@ private extension Unicode.Scalar {
 }
 
 private extension Substring.UnicodeScalarView {
-    mutating func popJSONPathComponent() -> JSONRepresentation.Path.Component? {
+    mutating func popJSONPathSegment() -> JSONRepresentation.Path.Segment? {
         guard let scalar = popFirst() else { return nil }
         switch scalar {
         case ".":
@@ -153,9 +154,9 @@ private extension Substring.UnicodeScalarView {
             removeFirst(name.count)
             return .key(String(Substring(name)))
         case "[":
-            let component = first == "'" ? popQuotedKey() : popIndex()
-            guard let component, popFirst() == "]" else { return nil }
-            return component
+            let segment = first == "'" ? popQuotedKey() : popIndex()
+            guard let segment, popFirst() == "]" else { return nil }
+            return segment
         default:
             return nil
         }
@@ -163,7 +164,7 @@ private extension Substring.UnicodeScalarView {
 
     /// An integer with no leading zeros or plus sign, so each index has one
     /// spelling.
-    mutating func popIndex() -> JSONRepresentation.Path.Component? {
+    mutating func popIndex() -> JSONRepresentation.Path.Segment? {
         let digits = prefix { $0 == "-" || $0.isASCIIDigit }
         let text = String(Substring(digits))
         guard let index = Int(text), String(index) == text else { return nil }
@@ -171,7 +172,7 @@ private extension Substring.UnicodeScalarView {
         return .index(index)
     }
 
-    mutating func popQuotedKey() -> JSONRepresentation.Path.Component? {
+    mutating func popQuotedKey() -> JSONRepresentation.Path.Segment? {
         _ = popFirst()
         var key = String.UnicodeScalarView()
         while let scalar = popFirst() {

@@ -60,13 +60,13 @@ private typealias Path = JSONRepresentation.Path
         #expect(Path(text) == nil)
     }
 
-    @Test func componentIsACodingKey() {
-        let index: Path.Component = .index(2)
+    @Test func segmentIsACodingKey() {
+        let index: Path.Segment = .index(2)
         #expect(index.stringValue == "Index 2")
         #expect(index.intValue == 2)
-        #expect(Path.Component(intValue: 2) == index)
-        #expect(Path.Component(stringValue: "a") == .key("a"))
-        #expect(Path.Component.key("a").intValue == nil)
+        #expect(Path.Segment(intValue: 2) == index)
+        #expect(Path.Segment(stringValue: "a") == .key("a"))
+        #expect(Path.Segment.key("a").intValue == nil)
     }
 
     @Test func subscriptFollowsThePath() {
@@ -89,7 +89,7 @@ private typealias Path = JSONRepresentation.Path
             _ = try json.decode(Building.self)
             Issue.record("Expected a type mismatch")
         } catch DecodingError.typeMismatch(_, let context) {
-            let path = Path(context.codingPath.map { key in key.intValue.map(Path.Component.index) ?? .key(key.stringValue) })
+            let path = Path(context.codingPath.map { key in key.intValue.map(Path.Segment.index) ?? .key(key.stringValue) })
             #expect(path == ["rooms", 1, "name"])
             #expect(json[path: path] == 2)
         }

@@ -10,7 +10,7 @@
 ///   decimal with more precision than `Double` is rounded.
 extension JSONRepresentation: Codable {
     public init(from decoder: any Decoder) throws {
-        if let container = try? decoder.container(keyedBy: Path.Component.self) {
+        if let container = try? decoder.container(keyedBy: Path.Segment.self) {
             self = .object(try container.allKeys.map { key in
                 (key: key.stringValue, value: try container.decode(JSONRepresentation.self, forKey: key))
             })
@@ -66,7 +66,7 @@ extension JSONRepresentation: Codable {
                 try container.encode(element)
             }
         case .object(let object):
-            var container = encoder.container(keyedBy: Path.Component.self)
+            var container = encoder.container(keyedBy: Path.Segment.self)
             for (key, value) in object {
                 try container.encode(value, forKey: .key(key))
             }

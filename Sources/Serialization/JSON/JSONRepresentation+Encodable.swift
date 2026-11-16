@@ -45,13 +45,13 @@ private extension JSONRepresentation {
             guard text.isJSONNumber else { throw corrupted("\"\(text)\" is not a valid JSON number.") }
         case .array(let elements):
             for (index, element) in elements.enumerated() {
-                try element.validate(codingPath: codingPath + [JSONRepresentation.Path.Component.index(index)])
+                try element.validate(codingPath: codingPath + [JSONRepresentation.Path.Segment.index(index)])
             }
         case .object(let object):
             var keys: Set<String> = []
             for (key, value) in object {
                 guard keys.insert(key).inserted else { throw corrupted("The key \"\(key)\" appears more than once.") }
-                try value.validate(codingPath: codingPath + [JSONRepresentation.Path.Component.key(key)])
+                try value.validate(codingPath: codingPath + [JSONRepresentation.Path.Segment.key(key)])
             }
         }
     }
@@ -218,7 +218,7 @@ private struct KeyedWriter<Key: CodingKey>: KeyedEncodingContainerProtocol {
     }
 
     mutating func superEncoder() -> any Encoder {
-        let key = JSONRepresentation.Path.Component.key("super")
+        let key = JSONRepresentation.Path.Segment.key("super")
         return RepresentationEncoder(node: node.child(forKey: key.stringValue), codingPath: codingPath + [key])
     }
 
@@ -233,7 +233,7 @@ private struct UnkeyedWriter: UnkeyedEncodingContainer {
     var count: Int { node.count }
 
     private func write(_ value: some Encodable) throws {
-        let key = JSONRepresentation.Path.Component.index(count)
+        let key = JSONRepresentation.Path.Segment.index(count)
         try node.appendChild().encode(value, codingPath: codingPath + [key])
     }
 
@@ -259,17 +259,17 @@ private struct UnkeyedWriter: UnkeyedEncodingContainer {
     mutating func encode(_ value: UInt128) throws { try write(value) }
 
     mutating func nestedContainer<NestedKey: CodingKey>(keyedBy keyType: NestedKey.Type) -> KeyedEncodingContainer<NestedKey> {
-        let key = JSONRepresentation.Path.Component.index(count)
+        let key = JSONRepresentation.Path.Segment.index(count)
         return RepresentationEncoder(node: node.appendChild(), codingPath: codingPath + [key]).container(keyedBy: keyType)
     }
 
     mutating func nestedUnkeyedContainer() -> any UnkeyedEncodingContainer {
-        let key = JSONRepresentation.Path.Component.index(count)
+        let key = JSONRepresentation.Path.Segment.index(count)
         return RepresentationEncoder(node: node.appendChild(), codingPath: codingPath + [key]).unkeyedContainer()
     }
 
     mutating func superEncoder() -> any Encoder {
-        let key = JSONRepresentation.Path.Component.index(count)
+        let key = JSONRepresentation.Path.Segment.index(count)
         return RepresentationEncoder(node: node.appendChild(), codingPath: codingPath + [key])
     }
 }
