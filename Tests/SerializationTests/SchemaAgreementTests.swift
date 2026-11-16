@@ -4,8 +4,8 @@ import Testing
 
 // MARK: - Fixtures
 
-private enum Level: Int, Codable { case low = 1, high = 2 }
-private enum Shade: String, Codable { case light, dark }
+private enum Level: Int, Codable, CaseIterable { case low = 1, high = 2 }
+private enum Shade: String, Codable, CaseIterable { case light, dark }
 
 private struct Room: Codable {
     var name: String
