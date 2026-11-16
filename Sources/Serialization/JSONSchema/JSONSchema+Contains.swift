@@ -4,8 +4,8 @@ extension JSONSchema {
     ///
     /// - An object ignores keys it does not declare.
     /// - An optional property may be missing or `null`.
-    /// - An `integer` must be written without a fraction or exponent, and a
-    ///   `number` accepts any finite JSON number, integers included.
+    /// - An `integer` accepts any number with a whole value, including text
+    ///   such as `1.0` and `1e2`, and a `number` accepts any finite number.
     /// - A restricted `cases` list must contain the value.
     ///
     /// Width is not part of a schema, so `300` is reported as decodable by
@@ -23,7 +23,11 @@ extension JSONSchema {
         case (.number, .number):
             value.doubleValue != nil
         case let (.integer(cases), .number):
-            if let integer = value.int64Value { cases?.contains(integer) ?? true } else { cases == nil && value.uint64Value != nil }
+            if let integer = value.int64Value ?? value.doubleValue.flatMap(Int64.init(exactly:)) {
+                cases?.contains(integer) ?? true
+            } else {
+                cases == nil && (value.uint64Value ?? value.doubleValue.flatMap(UInt64.init(exactly:))) != nil
+            }
         case let (.string(cases), .string(text)):
             cases?.contains(text) ?? true
         case let (.array(items), .array(elements)):
