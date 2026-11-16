@@ -3,18 +3,18 @@ import Testing
 
 @Suite struct JSONSchemaTests {
     let person: JSONSchema = .object([
-        (key: "name", value: .string),
-        (key: "age", value: .integer),
-        (key: "nickname", value: .optional(.string)),
+        (key: "name", value: .string()),
+        (key: "age", value: .integer()),
+        (key: "nickname", value: .optional(.string())),
         (key: "scores", value: .array(.number)),
     ])
 
     @Test func scalarsWriteTheirType() {
         #expect(JSONSchema.null.json == ["type": "null"])
         #expect(JSONSchema.boolean.json == ["type": "boolean"])
-        #expect(JSONSchema.integer.json == ["type": "integer"])
+        #expect(JSONSchema.integer().json == ["type": "integer"])
         #expect(JSONSchema.number.json == ["type": "number"])
-        #expect(JSONSchema.string.json == ["type": "string"])
+        #expect(JSONSchema.string().json == ["type": "string"])
     }
 
     @Test func objectDerivesRequiredFromOptional() {
@@ -32,25 +32,25 @@ import Testing
     }
 
     @Test func objectWithOnlyOptionalPropertiesOmitsRequired() {
-        let schema: JSONSchema = .object([(key: "note", value: .optional(.string))])
+        let schema: JSONSchema = .object([(key: "note", value: .optional(.string()))])
         #expect(schema["required"] == nil)
     }
 
     @Test func optionalOutsideAPropertyIsNullable() {
-        let schema: JSONSchema = .array(.optional(.integer))
+        let schema: JSONSchema = .array(.optional(.integer()))
         let expected: JSONRepresentation = ["type": "array", "items": ["anyOf": [["type": "integer"], ["type": "null"]]]]
         #expect(schema.json == expected)
     }
 
     @Test(arguments: [
-        JSONSchema.null, .boolean, .integer, .number, .string,
-        .array(.optional(.string)),
-        .optional(.array(.integer)),
+        JSONSchema.null, .boolean, .integer(), .number, .string(),
+        .array(.optional(.string())),
+        .optional(.array(.integer())),
         .object([]),
         .object([
-            (key: "id", value: .integer),
-            (key: "owner", value: .object([(key: "name", value: .string), (key: "email", value: .optional(.string))])),
-            (key: "note", value: .optional(.optional(.string))),
+            (key: "id", value: .integer()),
+            (key: "owner", value: .object([(key: "name", value: .string()), (key: "email", value: .optional(.string()))])),
+            (key: "note", value: .optional(.optional(.string()))),
         ]),
     ])
     func roundTrips(_ schema: JSONSchema) {
@@ -64,11 +64,11 @@ import Testing
     }
 
     @Test func propertyOrderIsIgnoredForEquality() {
-        let reordered: JSONSchema = .object([(key: "b", value: .string), (key: "a", value: .optional(.integer))])
-        let original: JSONSchema = .object([(key: "a", value: .optional(.integer)), (key: "b", value: .string)])
+        let reordered: JSONSchema = .object([(key: "b", value: .string()), (key: "a", value: .optional(.integer()))])
+        let original: JSONSchema = .object([(key: "a", value: .optional(.integer())), (key: "b", value: .string())])
         #expect(reordered == original)
         #expect(Set([original, original, reordered]).count == 1)
-        #expect(reordered != .object([(key: "a", value: .integer), (key: "b", value: .string)]))
+        #expect(reordered != .object([(key: "a", value: .integer()), (key: "b", value: .string())]))
     }
 }
 

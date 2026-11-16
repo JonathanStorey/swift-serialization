@@ -27,7 +27,7 @@ import Testing
     }
 
     @Test func schemaDescriptionIsSchemaText() {
-        let schema: JSONSchema = .object([(key: "name", value: .string), (key: "note", value: .optional(.string))])
+        let schema: JSONSchema = .object([(key: "name", value: .string()), (key: "note", value: .optional(.string()))])
         #expect(schema.description == #"{"type":"object","properties":{"name":{"type":"string"},"note":{"type":"string"}},"required":["name"]}"#)
     }
 
@@ -100,10 +100,10 @@ import Testing
     }
 
     @Test(arguments: [
-        JSONSchema.string,
-        .array(.optional(.integer)),
-        .object([(key: "name", value: .string)]),
-        .optional(.object([(key: "tags", value: .array(.string))])),
+        JSONSchema.string(),
+        .array(.optional(.integer())),
+        .object([(key: "name", value: .string())]),
+        .optional(.object([(key: "tags", value: .array(.string()))])),
     ])
     func schemaRoundTripsThroughFoundation(_ schema: JSONSchema) throws {
         let decoded = try JSONDecoder().decode(JSONSchema.self, from: JSONEncoder().encode(schema))

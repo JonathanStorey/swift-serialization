@@ -229,15 +229,15 @@ import Testing
 
     @Test func emptyRequiredListIsAccepted() {
         let json: JSONRepresentation = ["type": "object", "properties": ["a": ["type": "string"]], "required": []]
-        #expect(JSONSchema(json: json) == .object([(key: "a", value: .optional(.string))]))
+        #expect(JSONSchema(json: json) == .object([(key: "a", value: .optional(.string()))]))
     }
 
     @Test func deepNestingRoundTrips() {
-        var schema: JSONSchema = .string
+        var schema: JSONSchema = .string()
         for depth in 0..<60 {
             schema = depth.isMultiple(of: 2)
                 ? .array(.optional(schema))
-                : .object([(key: "child", value: schema), (key: "note", value: .optional(.string))])
+                : .object([(key: "child", value: schema), (key: "note", value: .optional(.string()))])
         }
         #expect(JSONSchema(json: schema.json) == schema)
     }
