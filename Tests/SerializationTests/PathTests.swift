@@ -33,7 +33,7 @@ private typealias Path = JSONRepresentation.Path
         (["café"], "$['café']"),
         (["a.b", "c[d]"], "$['a.b']['c[d]']"),
     ] as [(Path, String)])
-    func descriptionRoundTrips(path: Path, text: String) {
+    func descriptionRoundTrips(path: JSONRepresentation.Path, text: String) {
         #expect(path.description == text)
         #expect(Path(text) == path)
     }
