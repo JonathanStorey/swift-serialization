@@ -80,6 +80,48 @@ private typealias Path = JSONRepresentation.Path
         #expect(json[["missing", 0]] == nil)
     }
 
+    @Test func setReplacesTheValueAtThePath() {
+        var json: JSONRepresentation = ["rooms": [["name": "A", "floor": 1]]]
+        json[["rooms", 0, "name"]] = "B"
+        #expect(json.description == #"{"rooms":[{"name":"B","floor":1}]}"#)
+        json[["rooms", 0, "name"]] = ["first": "B"]
+        #expect(json[["rooms", 0, "name", "first"]] == "B")
+        json[[]] = "root"
+        #expect(json == "root")
+        json[[]] = nil
+        #expect(json == "root")
+    }
+
+    @Test func setAddsAndRemovesFinalKeys() {
+        var json: JSONRepresentation = ["a": 1, "b": ["c": 2]]
+        json[["z"]] = 26
+        json[["b", "d"]] = 4
+        #expect(json.description == #"{"a":1,"b":{"c":2,"d":4},"z":26}"#)
+        json[["a"]] = nil
+        json[["b", "c"]] = nil
+        json[["missing"]] = nil
+        #expect(json.description == #"{"b":{"d":4},"z":26}"#)
+    }
+
+    @Test func setDoesNothingWhenThePathDoesNotExist() {
+        let original: JSONRepresentation = ["list": [1, 2], "object": ["k": true]]
+        for path: Path in [["missing", "x"], ["list", "x"], ["object", 0], ["list", 0, "x"], [0]] {
+            var json = original
+            json[path] = "new"
+            #expect(json == original, "\(path)")
+        }
+    }
+
+    @Test func setOnlyReplacesArrayElementsInBounds() {
+        var json: JSONRepresentation = ["list": [1, ["x": 2], 3]]
+        json[["list", 0]] = "one"
+        json[["list", 1, "x"]] = 20
+        json[["list", 3]] = 4
+        json[["list", -1]] = 0
+        json[["list", 2]] = nil
+        #expect(json.description == #"{"list":["one",{"x":20},3]}"#)
+    }
+
     /// Paths and decoding errors describe locations the same way.
     @Test func matchesDecodingErrorCodingPath() throws {
         struct Room: Decodable { var name: String }

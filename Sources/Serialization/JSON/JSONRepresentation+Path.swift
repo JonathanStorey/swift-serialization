@@ -94,18 +94,69 @@ extension JSONRepresentation.Path: LosslessStringConvertible {
 // MARK: - Lookup
 
 extension JSONRepresentation {
-    /// The value at `path`, or `nil` when a key is missing, an index is out of
-    /// bounds, or a segment does not match the value's type. An empty path
-    /// returns the value itself.
+    /// The value at `path`.
+    ///
+    /// Reading returns `nil` when a key is missing, an index is out of bounds,
+    /// or a segment does not match the value's type. An empty path returns
+    /// the value itself.
+    ///
+    /// Writing follows `Dictionary` and optional chaining:
+    /// - A value replaces the one at `path`, and a missing final key is added
+    ///   at the end of its object.
+    /// - `nil` removes the final key.
+    /// - When the rest of the path does not exist, nothing changes.
+    /// - An index only replaces an element in bounds. Inserting and removing
+    ///   elements shifts later indices, so `nil` never removes one.
+    /// - `nil` at the empty path changes nothing.
+    ///
+    /// A hand-built object with a repeated key reads and writes the first.
     public subscript(path: Path) -> JSONRepresentation? {
-        var value: JSONRepresentation? = self
-        for segment in path {
-            value = switch segment {
-            case .key(let key): value?[key]
-            case .index(let index): value?[index]
+        get {
+            var value: JSONRepresentation? = self
+            for segment in path {
+                value = switch segment {
+                case .key(let key): value?[key]
+                case .index(let index): value?[index]
+                }
             }
+            return value
         }
-        return value
+        set {
+            assign(newValue, at: path[...])
+        }
+    }
+}
+
+private extension JSONRepresentation {
+    mutating func assign(_ newValue: JSONRepresentation?, at path: Path.SubSequence) {
+        guard let segment = path.first else {
+            if let newValue { self = newValue }
+            return
+        }
+        let rest = path.dropFirst()
+        switch (segment, self) {
+        case (.key(let key), .object(var object)):
+            self = .null  // Releases the storage so the edit below does not copy it.
+            defer { self = .object(object) }
+            let position = object.firstIndex { $0.key == key }
+            switch (position, newValue, rest.isEmpty) {
+            case (let position?, _, false): object[position].value.assign(newValue, at: rest)
+            case (let position?, let newValue?, true): object[position].value = newValue
+            case (let position?, nil, true): object.remove(at: position)
+            case (nil, let newValue?, true): object.append((key: key, value: newValue))
+            case (nil, _, _): break
+            }
+        case (.index(let index), .array(var array)) where array.indices.contains(index):
+            self = .null  // Releases the storage so the edit below does not copy it.
+            defer { self = .array(array) }
+            if !rest.isEmpty {
+                array[index].assign(newValue, at: rest)
+            } else if let newValue {
+                array[index] = newValue
+            }
+        default:
+            break
+        }
     }
 }
 
