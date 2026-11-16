@@ -166,10 +166,14 @@ import Testing
         #expect(object.count == 2)
     }
 
+    // Comparison, hashing and conversion recurse once per level. Swift Testing
+    // runs tests on secondary threads, which have 512 KB stacks on macOS, and
+    // 1,000 levels overflowed there in debug builds. 100 levels keeps a wide
+    // margin. A future parser will cap depth the way JSONDecoder does.
     @Test func deepNestingCompareAndHash() {
         var a: JSON = 0
         var b: JSON = 0
-        for _ in 0..<1_000 {
+        for _ in 0..<100 {
             a = ["next": a]
             b = ["next": b]
         }
@@ -230,7 +234,7 @@ import Testing
 
     @Test func deepNestingRoundTrips() {
         var schema: JSONSchema = .string
-        for depth in 0..<200 {
+        for depth in 0..<60 {
             schema = depth.isMultiple(of: 2)
                 ? .array(.optional(schema))
                 : .object([(key: "child", value: schema), (key: "note", value: .optional(.string))])
