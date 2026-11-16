@@ -75,7 +75,7 @@ extension JSONRepresentation: Codable {
 }
 
 /// A coding key for arbitrary object keys.
-private struct AnyCodingKey: CodingKey {
+struct AnyCodingKey: CodingKey {
     let stringValue: String
     var intValue: Int? { nil }
 
