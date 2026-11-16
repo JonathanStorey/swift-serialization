@@ -22,7 +22,9 @@ extension JSONSchema {
     ///   conform to `CaseIterable`.
     /// - Throws `DecodingError.dataCorrupted` for what `JSONSchema` cannot
     ///   describe: recursive types, objects with arbitrary keys such as
-    ///   `Dictionary`, and arrays decoded by position.
+    ///   `Dictionary`, and arrays decoded by position. An error the type throws
+    ///   itself is wrapped as the `underlyingError` of a `.dataCorrupted`, so
+    ///   every failure is a `DecodingError`.
     public init<T: Decodable>(for type: T.Type) throws {
         let recorder = SchemaRecorder(codingPath: [], context: SchemaRecorder.Context())
         _ = try recorder.decode(type)
@@ -90,7 +92,10 @@ extension SchemaRecorder {
         } catch {
             // A raw-value enum records its raw type, then rejects the
             // placeholder. A CaseIterable enum supplies a real case instead.
-            guard case .scalar = kind else { throw error }
+            guard case .scalar = kind else {
+                // Every failure is a `DecodingError`, as with `JSONDecoder`.
+                throw error as? DecodingError ?? .dataCorrupted(.init(codingPath: codingPath, debugDescription: "\(T.self) threw an error while being recorded.", underlyingError: error))
+            }
             guard let first = firstCase(of: type) else {
                 throw unsupported("\(T.self) rejected the recorder's placeholder value (an empty string, zero or false). A raw-value enum can conform to CaseIterable to supply a real case. Other types that validate their decoded value cannot be recorded.")
             }
