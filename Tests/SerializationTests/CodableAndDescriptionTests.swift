@@ -55,14 +55,14 @@ import Testing
     func roundTripsThroughFoundation(_ value: JSONRepresentation) throws {
         let data = try JSONEncoder().encode(value)
         let decoded = try JSONDecoder().decode(JSONRepresentation.self, from: data)
-        #expect(decoded.sortingKeys() == value.sortingKeys())
+        #expect(decoded == value)
     }
 
     @Test func multiKeyObjectsKeepTheirContent() throws {
         let value: JSONRepresentation = ["z": 1, "a": 2, "m": ["y": 3, "b": 4]]
         let data = try JSONEncoder().encode(value)
         let decoded = try JSONDecoder().decode(JSONRepresentation.self, from: data)
-        #expect(decoded.sortingKeys() == value.sortingKeys())
+        #expect(decoded == value)
     }
 
     @Test func largeUnsignedIntegersKeepFullPrecision() throws {
@@ -96,8 +96,7 @@ import Testing
         }
         let event = Event(name: "launch", metadata: ["attempt": 3, "tags": ["beta"]])
         let decoded = try JSONDecoder().decode(Event.self, from: JSONEncoder().encode(event))
-        #expect(decoded.name == event.name)
-        #expect(decoded.metadata.sortingKeys() == event.metadata.sortingKeys())
+        #expect(decoded == event)
     }
 
     @Test(arguments: [
@@ -108,27 +107,12 @@ import Testing
     ])
     func schemaRoundTripsThroughFoundation(_ schema: JSONSchema) throws {
         let decoded = try JSONDecoder().decode(JSONSchema.self, from: JSONEncoder().encode(schema))
-        #expect(decoded.json.sortingKeys() == schema.json.sortingKeys())
+        #expect(decoded == schema)
     }
 
     @Test func schemaDecodingRejectsUnsupportedSchemas() {
         #expect(throws: DecodingError.self) {
             try JSONDecoder().decode(JSONSchema.self, from: Data(#"{"type":"string","minLength":1}"#.utf8))
-        }
-    }
-}
-
-private extension JSONRepresentation {
-    /// A copy with every object's keys sorted, for comparing values whose key
-    /// order `JSONDecoder` does not preserve.
-    func sortingKeys() -> JSONRepresentation {
-        switch self {
-        case .array(let elements):
-            .array(elements.map { $0.sortingKeys() })
-        case .object(let object):
-            .object(object.map { (key: $0.key, value: $0.value.sortingKeys()) }.sorted { $0.key < $1.key })
-        default:
-            self
         }
     }
 }

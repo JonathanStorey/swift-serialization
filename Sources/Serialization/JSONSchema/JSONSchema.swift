@@ -17,14 +17,15 @@ public indirect enum JSONSchema: Sendable {
 }
 
 // Tuples cannot conform to protocols, so `Equatable` and `Hashable` are
-// written by hand. Properties compare in order.
+// written by hand. Properties compare and hash without regard to order, like
+// `Dictionary`.
 extension JSONSchema: Hashable {
     public static func == (lhs: JSONSchema, rhs: JSONSchema) -> Bool {
         switch (lhs, rhs) {
         case (.null, .null), (.boolean, .boolean), (.integer, .integer), (.number, .number), (.string, .string): true
         case let (.array(l), .array(r)): l == r
         case let (.optional(l), .optional(r)): l == r
-        case let (.object(l), .object(r)): l.elementsEqual(r) { $0.key == $1.key && $0.value == $1.value }
+        case let (.object(l), .object(r)): l.hasSamePairs(as: r)
         default: false
         }
     }
@@ -41,11 +42,7 @@ extension JSONSchema: Hashable {
             hasher.combine(items)
         case .object(let properties):
             hasher.combine(6)
-            hasher.combine(properties.count)
-            for (key, value) in properties {
-                hasher.combine(key)
-                hasher.combine(value)
-            }
+            properties.hashPairsIgnoringOrder(into: &hasher)
         case .optional(let wrapped):
             hasher.combine(7)
             hasher.combine(wrapped)

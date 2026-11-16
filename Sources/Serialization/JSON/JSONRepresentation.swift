@@ -19,8 +19,8 @@ public enum JSONRepresentation: Sendable {
 }
 
 // Tuples cannot conform to protocols, so `Equatable` and `Hashable` are
-// written by hand. Objects compare in order: the same pairs in a different
-// order are not equal.
+// written by hand. Objects compare and hash without regard to key order, like
+// `Dictionary`. Arrays stay ordered.
 extension JSONRepresentation: Hashable {
     public static func == (lhs: JSONRepresentation, rhs: JSONRepresentation) -> Bool {
         switch (lhs, rhs) {
@@ -29,7 +29,7 @@ extension JSONRepresentation: Hashable {
         case let (.number(l), .number(r)): l == r
         case let (.string(l), .string(r)): l == r
         case let (.array(l), .array(r)): l == r
-        case let (.object(l), .object(r)): l.elementsEqual(r) { $0.key == $1.key && $0.value == $1.value }
+        case let (.object(l), .object(r)): l.hasSamePairs(as: r)
         default: false
         }
     }
@@ -52,11 +52,7 @@ extension JSONRepresentation: Hashable {
             hasher.combine(elements)
         case .object(let object):
             hasher.combine(5)
-            hasher.combine(object.count)
-            for (key, value) in object {
-                hasher.combine(key)
-                hasher.combine(value)
-            }
+            object.hashPairsIgnoringOrder(into: &hasher)
         }
     }
 }
