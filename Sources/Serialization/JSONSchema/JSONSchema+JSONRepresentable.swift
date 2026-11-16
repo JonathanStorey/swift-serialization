@@ -120,10 +120,6 @@ private extension JSONSchema {
         return properties
     }
 
-    var isOptional: Bool {
-        if case .optional = self { true } else { false }
-    }
-
     /// The schema written under `properties`. Optionality is carried by the
     /// `required` list instead.
     var propertySchema: JSONSchema {

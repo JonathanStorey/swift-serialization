@@ -9,6 +9,11 @@ extension JSONSchema {
     /// matches what `JSONDecoder` accepts. `decodeIfPresent` records an
     /// optional property.
     ///
+    /// The schema describes what a default `JSONEncoder()` writes, so a type
+    /// has exactly one schema. Encoder strategies such as
+    /// `.convertToSnakeCase` or `.iso8601` are not reflected. Declare wire
+    /// names with `CodingKeys` instead, which the schema respects.
+    ///
     /// - `Date` and `Decimal` record `.number`, and `URL`, `Data` and `UUID`
     ///   record `.string`, matching `JSONEncoder`'s default strategies.
     /// - A `CaseIterable` raw-value enum records its raw values as the only
