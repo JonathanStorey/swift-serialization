@@ -55,7 +55,7 @@ extension JSONSchema: JSONRepresentable {
     }
 
     public var json: JSONRepresentation {
-        switch self {
+        switch flattened {
         case .null: return ["type": "null"]
         case .boolean: return ["type": "boolean"]
         case .integer(let cases): return Self.scalar("integer", cases: cases?.sorted().map(\.json))
@@ -64,6 +64,7 @@ extension JSONSchema: JSONRepresentable {
         case .array(let items): return ["type": "array", "items": items.json]
         case .optional(let wrapped): return ["anyOf": [wrapped.json, Self.null.json]]
         case .object(let properties):
+            assert(Set(properties.map(\.key)).count == properties.count, "JSONSchema.object has duplicate property names")
             var object: JSONRepresentation.Object = [
                 (key: "type", value: "object"),
                 (key: "properties", value: .object(properties.map { (key: $0.key, value: $0.value.propertySchema.json) })),
@@ -123,6 +124,6 @@ private extension JSONSchema {
     /// The schema written under `properties`. Optionality is carried by the
     /// `required` list instead.
     var propertySchema: JSONSchema {
-        if case .optional(let wrapped) = self { wrapped } else { self }
+        if case .optional(let wrapped) = flattened { wrapped } else { self }
     }
 }
