@@ -82,10 +82,9 @@ private struct Tree: Codable {
     var children: [Tree]
 }
 
-private struct LinkedNode: Codable {
-    var value: Int
-    var next: Box?
-    struct Box: Codable { var node: LinkedNode }
+private final class LinkedNode: Codable {
+    var value = 0
+    var next: LinkedNode?
 }
 
 private struct WithDictionary: Codable {
