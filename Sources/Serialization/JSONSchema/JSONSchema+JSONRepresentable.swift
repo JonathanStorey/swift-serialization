@@ -5,9 +5,10 @@
 /// schemas write equal JSON. Anywhere else, an optional schema is written
 /// as `{"anyOf": [<wrapped>, {"type": "null"}]}`.
 ///
-/// `init?(json:)` reads exactly the subset of JSON Schema that `json` writes.
-/// Anything it cannot represent fails instead of being dropped: an unknown
-/// keyword, a duplicate key, or a `required` name with no matching property.
+/// `init?(json:)` reads exactly the subset of JSON Schema that `json(_:)`
+/// writes in either ``Style``. Anything it cannot represent fails instead of
+/// being dropped: an unknown keyword, a duplicate key, or a `required` name
+/// with no matching property.
 extension JSONSchema: JSONRepresentable {
     public init?(json: JSONRepresentation) {
         guard case .object(let object) = json else { return nil }
@@ -37,14 +38,16 @@ extension JSONSchema: JSONRepresentable {
                 guard let items = json["items"].flatMap(JSONSchema.init(json:)) else { return nil }
                 schema = .array(items)
             case "object":
-                guard let properties = Self.properties(from: json) else { return nil }
+                guard (json["additionalProperties"] ?? false) == false,
+                      let properties = Self.properties(from: json)
+                else { return nil }
                 schema = .object(properties)
             default:
                 return nil
             }
             allowedKeys = switch type {
             case "array": ["type", "items"]
-            case "object": ["type", "properties", "required"]
+            case "object": ["type", "properties", "required", "additionalProperties"]
             case "integer", "string": ["type", "enum"]
             default: ["type"]
             }
@@ -54,28 +57,58 @@ extension JSONSchema: JSONRepresentable {
         self = schema
     }
 
+    /// The schema in the ``Style/standard`` style.
     public var json: JSONRepresentation {
+        json(.standard)
+    }
+}
+
+extension JSONSchema {
+    /// How optional properties and undeclared keys are written.
+    public enum Style: Sendable {
+        /// Matches `JSONEncoder` output. An optional property is left out of
+        /// `required`, because `JSONEncoder` omits `nil` properties.
+        case standard
+        /// The form structured-output APIs require in strict mode. Every
+        /// property is listed in `required`, an optional property is written
+        /// as nullable, and every object sets `"additionalProperties": false`.
+        case strict
+    }
+
+    /// The schema as JSON Schema in the given style. Both styles read back
+    /// to the same schema with `init?(json:)`.
+    public func json(_ style: Style) -> JSONRepresentation {
         switch flattened {
         case .null: return ["type": "null"]
         case .boolean: return ["type": "boolean"]
         case .integer(let cases): return Self.scalar("integer", cases: cases?.sorted().map(\.json))
         case .number: return ["type": "number"]
         case .string(let cases): return Self.scalar("string", cases: cases?.sorted().map(\.json))
-        case .array(let items): return ["type": "array", "items": items.json]
-        case .optional(let wrapped): return ["anyOf": [wrapped.json, Self.null.json]]
+        case .array(let items): return ["type": "array", "items": items.json(style)]
+        case .optional(let wrapped): return ["anyOf": [wrapped.json(style), Self.null.json]]
         case .object(let properties):
             assert(Set(properties.map(\.key)).count == properties.count, "JSONSchema.object has duplicate property names")
-            var object: JSONRepresentation.Object = [
-                (key: "type", value: "object"),
-                (key: "properties", value: .object(properties.map { (key: $0.key, value: $0.value.propertySchema.json) })),
-            ]
             // `required` is a set in JSON Schema. Sorting it means equal
             // schemas, whatever their property order, write equal JSON.
-            let required = properties.filter { !$0.value.isOptional }.map(\.key).sorted().map(JSONRepresentation.string)
-            if !required.isEmpty {
-                object.append((key: "required", value: .array(required)))
+            switch style {
+            case .standard:
+                var object: JSONRepresentation.Object = [
+                    (key: "type", value: "object"),
+                    (key: "properties", value: .object(properties.map { (key: $0.key, value: $0.value.propertySchema.json(style)) })),
+                ]
+                let required = properties.filter { !$0.value.isOptional }.map(\.key).sorted().map(JSONRepresentation.string)
+                if !required.isEmpty {
+                    object.append((key: "required", value: .array(required)))
+                }
+                return .object(object)
+            case .strict:
+                return .object([
+                    (key: "type", value: "object"),
+                    (key: "properties", value: .object(properties.map { (key: $0.key, value: $0.value.json(style)) })),
+                    (key: "required", value: .array(properties.map(\.key).sorted().map(JSONRepresentation.string))),
+                    (key: "additionalProperties", value: false),
+                ])
             }
-            return .object(object)
         }
     }
 }

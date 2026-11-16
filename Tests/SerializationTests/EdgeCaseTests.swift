@@ -188,7 +188,7 @@ import Testing
     @Test(arguments: [
         ["type": "string", "minLength": 1],
         ["type": "array", "items": ["type": "string"], "maxItems": 3],
-        ["type": "object", "properties": [:], "additionalProperties": false],
+        ["type": "object", "properties": [:], "additionalProperties": true],
         ["anyOf": [["type": "string"], ["type": "null"]], "description": "x"],
     ] as [JSONRepresentation])
     func rejectsUnknownKeywords(_ json: JSONRepresentation) {
