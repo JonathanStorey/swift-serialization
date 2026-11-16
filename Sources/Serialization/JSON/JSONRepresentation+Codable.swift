@@ -27,11 +27,11 @@ extension JSONRepresentation: Codable {
             } else if let value = try? container.decode(Bool.self) {
                 self = .bool(value)
             } else if let value = try? container.decode(Int64.self) {
-                self = value.json
+                self = .number(String(value))
             } else if let value = try? container.decode(UInt64.self) {
-                self = value.json
+                self = .number(String(value))
             } else if let value = try? container.decode(Double.self) {
-                self = value.json
+                self = value.jsonRepresentation
             } else {
                 self = .string(try container.decode(String.self))
             }
@@ -51,11 +51,11 @@ extension JSONRepresentation: Codable {
             try container.encode(value)
         case .number:
             var container = encoder.singleValueContainer()
-            if let value = Int64(json: self) {
+            if let value = int64Value {
                 try container.encode(value)
-            } else if let value = UInt64(json: self) {
+            } else if let value = uint64Value {
                 try container.encode(value)
-            } else if let value = Double(json: self) {
+            } else if let value = doubleValue {
                 try container.encode(value)
             } else {
                 throw EncodingError.invalidValue(self, .init(codingPath: encoder.codingPath, debugDescription: "Number text is not a valid JSON number."))

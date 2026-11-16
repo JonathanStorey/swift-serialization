@@ -31,11 +31,11 @@ extension JSONSchema {
             case "null": schema = .null
             case "boolean": schema = .boolean
             case "integer":
-                guard let cases = Self.cases(Int64.self, from: json) else { return nil }
+                guard let cases = Self.cases(from: json, \.int64Value) else { return nil }
                 schema = .integer(cases: cases)
             case "number": schema = .number
             case "string":
-                guard let cases = Self.cases(String.self, from: json) else { return nil }
+                guard let cases = Self.cases(from: json, \.stringValue) else { return nil }
                 schema = .string(cases: cases)
             case "array":
                 guard let items = json["items"].flatMap(JSONSchema.init(json:)) else { return nil }
@@ -84,9 +84,9 @@ extension JSONSchema {
         switch flattened {
         case .null: return ["type": "null"]
         case .boolean: return ["type": "boolean"]
-        case .integer(let cases): return Self.scalar("integer", cases: cases?.sorted().map(\.json))
+        case .integer(let cases): return Self.scalar("integer", cases: cases?.sorted().map { JSONRepresentation.number(String($0)) })
         case .number: return ["type": "number"]
-        case .string(let cases): return Self.scalar("string", cases: cases?.sorted().map(\.json))
+        case .string(let cases): return Self.scalar("string", cases: cases?.sorted().map(JSONRepresentation.string))
         case .array(let items): return ["type": "array", "items": items.json(style)]
         case .optional(let wrapped): return ["anyOf": [wrapped.json(style), Self.null.json]]
         case .object(let properties):
@@ -129,9 +129,11 @@ private extension JSONSchema {
 
     /// Reads an optional `"enum"` list. Returns `.some(nil)` when there is no
     /// list, and `nil` when the list is malformed or repeats a value.
-    static func cases<Value: JSONRepresentable & Hashable>(_ type: Value.Type, from json: JSONRepresentation) -> Set<Value>?? {
+    static func cases<Value: Hashable>(from json: JSONRepresentation, _ read: (JSONRepresentation) -> Value?) -> Set<Value>?? {
         guard let list = json["enum"] else { return .some(nil) }
-        guard let values = [Value](json: list) else { return nil }
+        guard let elements = list.arrayValue else { return nil }
+        let values = elements.compactMap(read)
+        guard values.count == elements.count else { return nil }
         let allowed = Set(values)
         guard allowed.count == values.count else { return nil }
         return allowed
@@ -141,8 +143,10 @@ private extension JSONSchema {
     /// missing from `required` becomes ``JSONSchema/optional(_:)``.
     static func properties(from json: JSONRepresentation) -> Properties? {
         guard case .object(let object) = json["properties"] ?? [:],
-              let required = [String](json: json["required"] ?? [])
+              let requiredList = (json["required"] ?? []).arrayValue
         else { return nil }
+        let required = requiredList.compactMap(\.stringValue)
+        guard required.count == requiredList.count else { return nil }
         let names = object.map(\.key)
         guard Set(names).count == names.count,
               Set(required).count == required.count,

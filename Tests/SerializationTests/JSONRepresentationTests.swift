@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import Serialization
 
@@ -97,42 +98,136 @@ import Testing
     }
 }
 
-@Suite struct JSONRepresentableTests {
-    @Test func stringAndBool() {
-        #expect(String(json: "Ada") == "Ada")
-        #expect(Bool(json: true) == true)
-        #expect(String(json: 1) == nil)
-        #expect("Ada".json == .string("Ada"))
+@Suite struct EncodableAndDecodeTests {
+    @Test func stringAndBool() throws {
+        #expect(try JSONRepresentation("Ada" as String) == .string("Ada"))
+        #expect(try JSONRepresentation(true as Bool) == .bool(true))
+        #expect(try JSONRepresentation.string("Ada").decode(String.self) == "Ada")
+        #expect(throws: DecodingError.self) { try JSONRepresentation.number("1").decode(String.self) }
     }
 
-    @Test func integersKeepFullPrecision() {
+    @Test func integersKeepFullPrecision() throws {
         let big: Int64 = 9_007_199_254_740_993
-        #expect(big.json == .number("9007199254740993"))
-        #expect(Int64(json: .number("9007199254740993")) == big)
-        #expect(UInt8(json: .number("256")) == nil)
-        #expect(Int(json: .number("1.5")) == nil)
+        #expect(try JSONRepresentation(big) == .number("9007199254740993"))
+        #expect(try JSONRepresentation.number("9007199254740993").decode(Int64.self) == big)
+        #expect(throws: DecodingError.self) { try JSONRepresentation.number("256").decode(UInt8.self) }
+        #expect(throws: DecodingError.self) { try JSONRepresentation.number("1.5").decode(Int.self) }
     }
 
-    @Test func floatingPoint() {
-        #expect(Double(json: .number("0.1")) == 0.1)
-        #expect(Double(json: .number("1e3")) == 1000)
-        #expect((0.1).json == .number("0.1"))
-        #expect((8.0).json == .number("8"))
-        #expect(Double.infinity.json == .string("Infinity"))
-        #expect(Double.nan.json == .string("NaN"))
-        #expect(Double(json: .number("nan")) == nil)
+    @Test func floatingPoint() throws {
+        #expect(try JSONRepresentation.number("0.1").decode(Double.self) == 0.1)
+        #expect(try JSONRepresentation.number("1e3").decode(Double.self) == 1000)
+        #expect(try JSONRepresentation(0.1 as Double) == .number("0.1"))
+        #expect(try JSONRepresentation(8.0 as Double) == .number("8"))
+        #expect(try JSONRepresentation(Double.infinity) == .string("Infinity"))
+        #expect(try JSONRepresentation(Double.nan) == .string("NaN"))
+        #expect(throws: DecodingError.self) { try JSONRepresentation.number("nan").decode(Double.self) }
     }
 
-    @Test func optional() {
-        #expect(Optional<Int>(json: .null) == .some(nil))
-        #expect(Optional<Int>(json: 3) == .some(3))
-        #expect(Optional<Int>(json: "x") == nil)
-        #expect((nil as Int?).json == .null)
+    @Test func optional() throws {
+        #expect(try JSONRepresentation.null.decode(Int?.self) == nil)
+        #expect(try JSONRepresentation.number("3").decode(Int?.self) == 3)
+        #expect(throws: DecodingError.self) { try JSONRepresentation.string("x").decode(Int?.self) }
+        #expect(try JSONRepresentation(nil as Int?) == .null)
     }
 
-    @Test func arrayFailsWhenAnyElementFails() {
-        #expect([Int](json: [1, 2, 3]) == [1, 2, 3])
-        #expect([Int](json: [1, "two", 3]) == nil)
-        #expect([1, 2].json == [1, 2])
+    @Test func arrayFailsWhenAnyElementFails() throws {
+        #expect(try JSONRepresentation([1, 2, 3] as [Int]).decode([Int].self) == [1, 2, 3])
+        #expect(throws: DecodingError.self) { try ([1, "two", 3] as JSONRepresentation).decode([Int].self) }
+    }
+
+    @Test func keysFollowEncodeOrderAndMatchJSONEncoder() throws {
+        struct Profile: Codable, Equatable {
+            var zeta: String
+            var alpha: Int
+            var nested: [String: [Bool]]
+            var missing: String?
+        }
+        let profile = Profile(zeta: "z", alpha: 1, nested: ["only": [true, false]], missing: nil)
+        let json = try JSONRepresentation(profile)
+        guard case .object(let object) = json else {
+            Issue.record("Expected an object")
+            return
+        }
+        #expect(object.map(\.key) == ["zeta", "alpha", "nested"])
+        #expect(try json.decode(Profile.self) == profile)
+    }
+
+    /// Properties are declared in sorted order, so `.sortedKeys` output and
+    /// encode order agree and the text can be compared byte for byte.
+    @Test func textMatchesJSONEncoder() throws {
+        struct Sorted: Encodable {
+            var a = [0.5, 8, -2.25]
+            var b = "x/y é"
+            var c: Int? = nil
+            var d = [true]
+            var e = UInt64.max
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let expected = String(decoding: try encoder.encode(Sorted()), as: UTF8.self)
+        #expect(try JSONRepresentation(Sorted()).description == expected)
+    }
+
+    @Test func foundationTypesMatchJSONEncoder() throws {
+        struct Stamped: Codable, Equatable {
+            var created: Date
+            var link: URL
+            var payload: Data
+            var amount: Decimal
+            var id: UUID
+        }
+        let value = Stamped(
+            created: Date(timeIntervalSinceReferenceDate: 1_000.5),
+            link: URL(string: "https://example.com/a?b=c")!,
+            payload: Data([1, 2, 255]),
+            amount: Decimal(string: "12.5")!,
+            id: UUID(uuidString: "E621E1F8-C36C-495A-93FC-0C247A3E6E5F")!
+        )
+        let json = try JSONRepresentation(value)
+        let foundation = try JSONDecoder().decode(JSONRepresentation.self, from: JSONEncoder().encode(value))
+        #expect(json == foundation)
+        #expect(try json.decode(Stamped.self) == value)
+    }
+
+    @Test func nestedContainersAndSuperEncoders() throws {
+        class Base: Codable { var name = "base" }
+        final class Derived: Base {
+            var extra = 2
+            private enum CodingKeys: String, CodingKey { case extra }
+            override init() { super.init() }
+            required init(from decoder: any Decoder) throws { fatalError("Not used") }
+            override func encode(to encoder: any Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(extra, forKey: .extra)
+                try super.encode(to: container.superEncoder())
+            }
+        }
+        #expect(try JSONRepresentation(Derived()) == ["extra": 2, "super": ["name": "base"]])
+    }
+
+    @Test func repeatedKeysReplaceInPlace() throws {
+        struct Twice: Encodable {
+            enum CodingKeys: String, CodingKey { case a, b }
+            func encode(to encoder: any Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(1, forKey: .a)
+                try container.encode(2, forKey: .b)
+                try container.encode(3, forKey: .a)
+            }
+        }
+        #expect(try JSONRepresentation(Twice()).description == #"{"a":3,"b":2}"#)
+    }
+
+    @Test func emptyEncodingThrows() {
+        struct Nothing: Encodable { func encode(to encoder: any Encoder) throws {} }
+        #expect(throws: EncodingError.self) { try JSONRepresentation(Nothing()) }
+    }
+
+    @Test func decodeRejectsWhatJSONDecoderWouldTolerate() {
+        #expect(throws: DecodingError.self) { try JSONRepresentation.number(" 1").decode(Int.self) }
+        #expect(throws: DecodingError.self) {
+            try JSONRepresentation.object([(key: "a", value: 1), (key: "a", value: 2)]).decode([String: Int].self)
+        }
     }
 }
