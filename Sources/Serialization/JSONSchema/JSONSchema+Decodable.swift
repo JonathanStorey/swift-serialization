@@ -84,7 +84,7 @@ extension SchemaRecorder {
             // placeholder. A CaseIterable enum supplies a real case instead.
             if case .scalar = kind, let first = firstCase(of: type) { return first }
             if case .scalar = kind {
-                throw unsupported("\(T.self) rejected the recorder's placeholder value. A raw-value enum can conform to CaseIterable to supply a real case.")
+                throw unsupported("\(T.self) rejected the recorder's placeholder value (an empty string, zero or false). A raw-value enum can conform to CaseIterable to supply a real case. Other types that validate their decoded value cannot be recorded.")
             }
             throw error
         }
