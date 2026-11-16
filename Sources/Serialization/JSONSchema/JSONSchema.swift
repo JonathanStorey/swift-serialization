@@ -20,6 +20,12 @@ public indirect enum JSONSchema: Sendable {
     case optional(JSONSchema)
 }
 
+extension JSONSchema {
+    var isOptional: Bool {
+        if case .optional = self { true } else { false }
+    }
+}
+
 // Tuples cannot conform to protocols, so `Equatable` and `Hashable` are
 // written by hand. Properties compare and hash without regard to order, like
 // `Dictionary`.

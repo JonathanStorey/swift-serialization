@@ -134,6 +134,22 @@ private final class Inner: Decodable {
     var outer: Outer?
 }
 
+private struct CustomFailure: Error {}
+
+/// Throws its own error type from an object container.
+private struct ThrowsCustomError: Decodable {
+    private enum CodingKeys: String, CodingKey { case value }
+
+    init(from decoder: any Decoder) throws {
+        _ = try decoder.container(keyedBy: CodingKeys.self).decode(Int.self, forKey: .value)
+        throw CustomFailure()
+    }
+}
+
+private struct HoldsCustomError: Decodable {
+    var inner: ThrowsCustomError
+}
+
 // Large fixture for the scale test: 8 × 8 × 8 leaf properties.
 private struct Leaf: Codable {
     var a: String, b: Int, c: Double, d: Bool, e: String?, f: [Int], g: Int?, h: [String?]
@@ -227,6 +243,19 @@ private struct Trunk: Codable {
         } catch DecodingError.dataCorrupted(let context) {
             #expect(context.debugDescription.contains("Outer"))
             #expect(context.codingPath.map(\.stringValue) == ["inner", "outer"])
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test func foreignErrorsAreWrappedInDecodingError() {
+        do {
+            _ = try JSONSchema(for: HoldsCustomError.self)
+            Issue.record("Expected an error")
+        } catch DecodingError.dataCorrupted(let context) {
+            #expect(context.underlyingError is CustomFailure)
+            #expect(context.debugDescription.contains("ThrowsCustomError"))
+            #expect(context.codingPath.map(\.stringValue) == ["inner"])
         } catch {
             Issue.record("Unexpected error: \(error)")
         }
