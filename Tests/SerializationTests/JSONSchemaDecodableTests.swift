@@ -110,23 +110,23 @@ private struct Pair: Decodable {
 
 @Suite struct JSONSchemaDecodableTests {
     @Test func scalarsAndCollections() throws {
-        #expect(try JSONSchema(for: String.self) == .string)
+        #expect(try JSONSchema(for: String.self) == .string())
         #expect(try JSONSchema(for: Bool.self) == .boolean)
-        #expect(try JSONSchema(for: Int.self) == .integer)
-        #expect(try JSONSchema(for: UInt8.self) == .integer)
+        #expect(try JSONSchema(for: Int.self) == .integer())
+        #expect(try JSONSchema(for: UInt8.self) == .integer())
         #expect(try JSONSchema(for: Double.self) == .number)
         #expect(try JSONSchema(for: Float.self) == .number)
-        #expect(try JSONSchema(for: Int?.self) == .optional(.integer))
-        #expect(try JSONSchema(for: [String].self) == .array(.string))
-        #expect(try JSONSchema(for: [Int?].self) == .array(.optional(.integer)))
+        #expect(try JSONSchema(for: Int?.self) == .optional(.integer()))
+        #expect(try JSONSchema(for: [String].self) == .array(.string()))
+        #expect(try JSONSchema(for: [Int?].self) == .array(.optional(.integer())))
         #expect(try JSONSchema(for: [[Bool]].self) == .array(.array(.boolean)))
     }
 
     @Test func flatStruct() throws {
         let expected: JSONSchema = .object([
-            (key: "name", value: .string),
-            (key: "age", value: .integer),
-            (key: "nickname", value: .optional(.string)),
+            (key: "name", value: .string()),
+            (key: "age", value: .integer()),
+            (key: "nickname", value: .optional(.string())),
             (key: "scores", value: .array(.number)),
         ])
         #expect(try JSONSchema(for: Person.self) == expected)
@@ -141,31 +141,31 @@ private struct Pair: Decodable {
     }
 
     @Test func nestedStructsArraysAndOptionals() throws {
-        let address: JSONSchema = .object([(key: "city", value: .string), (key: "zip", value: .optional(.string))])
+        let address: JSONSchema = .object([(key: "city", value: .string()), (key: "zip", value: .optional(.string()))])
         let expected: JSONSchema = .object([
-            (key: "name", value: .string),
+            (key: "name", value: .string()),
             (key: "headquarters", value: address),
             (key: "offices", value: .array(address)),
             (key: "parent", value: .optional(address)),
-            (key: "tags", value: .array(.optional(.string))),
-            (key: "grid", value: .array(.array(.integer))),
+            (key: "tags", value: .array(.optional(.string()))),
+            (key: "grid", value: .array(.array(.integer()))),
             (key: "flags", value: .array(.boolean)),
         ])
         #expect(try JSONSchema(for: Company.self) == expected)
     }
 
     @Test func customCodingKeysAreUsed() throws {
-        let expected: JSONSchema = .object([(key: "first_name", value: .string), (key: "active", value: .boolean)])
+        let expected: JSONSchema = .object([(key: "first_name", value: .string()), (key: "active", value: .boolean)])
         #expect(try JSONSchema(for: Renamed.self) == expected)
     }
 
     @Test func caseIterableRawValueEnums() throws {
-        #expect(try JSONSchema(for: Color.self) == .string)
-        #expect(try JSONSchema(for: Priority.self) == .integer)
+        #expect(try JSONSchema(for: Color.self) == .string(allowed: ["red", "green"]))
+        #expect(try JSONSchema(for: Priority.self) == .integer(allowed: [1, 2]))
         let expected: JSONSchema = .object([
-            (key: "primary", value: .string),
-            (key: "accent", value: .optional(.string)),
-            (key: "priority", value: .integer),
+            (key: "primary", value: .string(allowed: ["red", "green"])),
+            (key: "accent", value: .optional(.string(allowed: ["red", "green"]))),
+            (key: "priority", value: .integer(allowed: [1, 2])),
         ])
         #expect(try JSONSchema(for: Palette.self) == expected)
     }
@@ -173,18 +173,18 @@ private struct Pair: Decodable {
     @Test func foundationTypesMatchJSONEncoderDefaults() throws {
         let expected: JSONSchema = .object([
             (key: "created", value: .number),
-            (key: "link", value: .string),
-            (key: "payload", value: .string),
+            (key: "link", value: .string()),
+            (key: "payload", value: .string()),
             (key: "amount", value: .number),
-            (key: "id", value: .string),
+            (key: "id", value: .string()),
         ])
         #expect(try JSONSchema(for: Stamped.self) == expected)
     }
 
     @Test func handWrittenNestedContainers() throws {
         let expected: JSONSchema = .object([
-            (key: "point", value: .object([(key: "x", value: .integer)])),
-            (key: "label", value: .string),
+            (key: "point", value: .object([(key: "x", value: .integer())])),
+            (key: "label", value: .string()),
         ])
         #expect(try JSONSchema(for: HandWritten.self) == expected)
     }

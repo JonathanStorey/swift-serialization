@@ -151,14 +151,14 @@ private struct Trunk: Codable {
 
 @Suite struct JSONSchemaDecodableEdgeCaseTests {
     @Test func subclassDecodingSuperFromSameDecoder() throws {
-        let expected: JSONSchema = .object([(key: "breed", value: .string), (key: "name", value: .string)])
+        let expected: JSONSchema = .object([(key: "breed", value: .string()), (key: "name", value: .string())])
         #expect(try JSONSchema(for: Dog.self) == expected)
     }
 
     @Test func subclassDecodingSuperFromSuperDecoder() throws {
         let expected: JSONSchema = .object([
-            (key: "lives", value: .integer),
-            (key: "super", value: .object([(key: "name", value: .string)])),
+            (key: "lives", value: .integer()),
+            (key: "super", value: .object([(key: "name", value: .string())])),
         ])
         #expect(try JSONSchema(for: Cat.self) == expected)
     }
@@ -169,35 +169,35 @@ private struct Trunk: Codable {
     }
 
     @Test func genericWrappers() throws {
-        #expect(try JSONSchema(for: Box<Int>.self) == .object([(key: "value", value: .integer)]))
-        #expect(try JSONSchema(for: Box<[String]>.self) == .object([(key: "value", value: .array(.string))]))
+        #expect(try JSONSchema(for: Box<Int>.self) == .object([(key: "value", value: .integer())]))
+        #expect(try JSONSchema(for: Box<[String]>.self) == .object([(key: "value", value: .array(.string()))]))
         let nested: JSONSchema = .object([(key: "value", value: .object([(key: "value", value: .optional(.boolean))]))])
         #expect(try JSONSchema(for: Box<Box<Bool?>>.self) == nested)
     }
 
     @Test func singleValueWrappers() throws {
-        #expect(try JSONSchema(for: UserID.self) == .string)
+        #expect(try JSONSchema(for: UserID.self) == .string())
         let coordinates: JSONSchema = .object([(key: "lat", value: .number), (key: "lon", value: .number)])
         #expect(try JSONSchema(for: Location.self) == coordinates)
     }
 
     @Test func nestedOptionalsCollapseToOne() throws {
-        #expect(try JSONSchema(for: Int??.self) == .optional(.integer))
-        #expect(try JSONSchema(for: DoubleOptional.self) == .object([(key: "value", value: .optional(.integer))]))
+        #expect(try JSONSchema(for: Int??.self) == .optional(.integer()))
+        #expect(try JSONSchema(for: DoubleOptional.self) == .object([(key: "value", value: .optional(.integer()))]))
     }
 
     @Test func optionalCollectionsAtTopLevel() throws {
-        #expect(try JSONSchema(for: [Int]?.self) == .optional(.array(.integer)))
+        #expect(try JSONSchema(for: [Int]?.self) == .optional(.array(.integer())))
         #expect(try JSONSchema(for: [Coordinates?].self) == .array(.optional(.object([(key: "lat", value: .number), (key: "lon", value: .number)]))))
     }
 
     @Test func rawValueEnumsWhosePlaceholderIsACase() throws {
-        #expect(try JSONSchema(for: Level.self) == .integer)
-        #expect(try JSONSchema(for: Tag.self) == .string)
+        #expect(try JSONSchema(for: Level.self) == .integer())
+        #expect(try JSONSchema(for: Tag.self) == .string())
     }
 
     @Test func sameKeyDecodedTwiceIsOneProperty() throws {
-        #expect(try JSONSchema(for: DecodesKeyTwice.self) == .object([(key: "value", value: .integer)]))
+        #expect(try JSONSchema(for: DecodesKeyTwice.self) == .object([(key: "value", value: .integer())]))
     }
 
     @Test func sameKeyDecodedAsTwoKindsThrows() {
@@ -217,7 +217,7 @@ private struct Trunk: Codable {
     }
 
     @Test func errorsSwallowedByTheTypeStillRecord() throws {
-        #expect(try JSONSchema(for: Lenient.self) == .object([(key: "count", value: .integer)]))
+        #expect(try JSONSchema(for: Lenient.self) == .object([(key: "count", value: .integer())]))
     }
 
     @Test func recursionErrorNamesTheType() {

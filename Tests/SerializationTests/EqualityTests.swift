@@ -72,12 +72,12 @@ import Testing
 
 @Suite struct JSONSchemaEqualityTests {
     @Test(arguments: [
-        (.object([(key: "a", value: .string), (key: "b", value: .integer)]),
-         .object([(key: "b", value: .integer), (key: "a", value: .string)])),
+        (.object([(key: "a", value: .string()), (key: "b", value: .integer())]),
+         .object([(key: "b", value: .integer()), (key: "a", value: .string())])),
         (.array(.object([(key: "x", value: .boolean), (key: "y", value: .optional(.number))])),
          .array(.object([(key: "y", value: .optional(.number)), (key: "x", value: .boolean)]))),
-        (.optional(.object([(key: "inner", value: .object([(key: "p", value: .string), (key: "q", value: .null)])), (key: "n", value: .number)])),
-         .optional(.object([(key: "n", value: .number), (key: "inner", value: .object([(key: "q", value: .null), (key: "p", value: .string)]))]))),
+        (.optional(.object([(key: "inner", value: .object([(key: "p", value: .string()), (key: "q", value: .null)])), (key: "n", value: .number)])),
+         .optional(.object([(key: "n", value: .number), (key: "inner", value: .object([(key: "q", value: .null), (key: "p", value: .string())]))]))),
         (.object([]), .object([])),
     ] as [(JSONSchema, JSONSchema)])
     func reorderedPropertiesAreEqualAndHashEqually(_ pair: (JSONSchema, JSONSchema)) {
@@ -88,12 +88,12 @@ import Testing
     }
 
     @Test(arguments: [
-        (.object([(key: "a", value: .string)]), .object([(key: "a", value: .optional(.string))])),
-        (.object([(key: "a", value: .string)]), .object([(key: "b", value: .string)])),
-        (.object([(key: "a", value: .string)]), .object([(key: "a", value: .string), (key: "b", value: .string)])),
-        (.integer, .number),
-        (.array(.string), .array(.optional(.string))),
-        (.optional(.optional(.string)), .optional(.string)),
+        (.object([(key: "a", value: .string())]), .object([(key: "a", value: .optional(.string()))])),
+        (.object([(key: "a", value: .string())]), .object([(key: "b", value: .string())])),
+        (.object([(key: "a", value: .string())]), .object([(key: "a", value: .string()), (key: "b", value: .string())])),
+        (.integer(), .number),
+        (.array(.string()), .array(.optional(.string()))),
+        (.optional(.optional(.string())), .optional(.string())),
         (.object([]), .array(.null)),
     ] as [(JSONSchema, JSONSchema)])
     func differentSchemasAreNotEqual(_ pair: (JSONSchema, JSONSchema)) {
@@ -103,7 +103,7 @@ import Testing
     }
 
     @Test func everyPermutationIsEqualAndHashesEqually() {
-        let properties: JSONSchema.Properties = [(key: "a", value: .string), (key: "b", value: .optional(.integer)), (key: "c", value: .array(.number)), (key: "d", value: .boolean)]
+        let properties: JSONSchema.Properties = [(key: "a", value: .string()), (key: "b", value: .optional(.integer())), (key: "c", value: .array(.number)), (key: "d", value: .boolean)]
         let schemas = properties.permutations().map { JSONSchema.object($0) }
         #expect(schemas.count == 24)
         #expect(schemas.allSatisfy { $0 == schemas[0] })
@@ -111,8 +111,8 @@ import Testing
     }
 
     @Test func equalSchemasWriteEqualJSON() {
-        let first: JSONSchema = .object([(key: "a", value: .string), (key: "b", value: .string)])
-        let second: JSONSchema = .object([(key: "b", value: .string), (key: "a", value: .string)])
+        let first: JSONSchema = .object([(key: "a", value: .string()), (key: "b", value: .string())])
+        let second: JSONSchema = .object([(key: "b", value: .string()), (key: "a", value: .string())])
         #expect(first == second)
         #expect(first.json == second.json)
         #expect(first.description != second.description)

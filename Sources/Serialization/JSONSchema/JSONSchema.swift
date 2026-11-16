@@ -8,9 +8,13 @@ public indirect enum JSONSchema: Sendable {
 
     case null
     case boolean
-    case integer
+    /// A whole number. `allowed` lists the only permitted values, as for an
+    /// `Int` raw-value enum, and `nil` permits any integer.
+    case integer(allowed: Set<Int64>? = nil)
     case number
-    case string
+    /// A string. `allowed` lists the only permitted values, as for a `String`
+    /// raw-value enum, and `nil` permits any string.
+    case string(allowed: Set<String>? = nil)
     case array(JSONSchema)
     case object(Properties)
     case optional(JSONSchema)
@@ -22,7 +26,9 @@ public indirect enum JSONSchema: Sendable {
 extension JSONSchema: Hashable {
     public static func == (lhs: JSONSchema, rhs: JSONSchema) -> Bool {
         switch (lhs, rhs) {
-        case (.null, .null), (.boolean, .boolean), (.integer, .integer), (.number, .number), (.string, .string): true
+        case (.null, .null), (.boolean, .boolean), (.number, .number): true
+        case let (.integer(l), .integer(r)): l == r
+        case let (.string(l), .string(r)): l == r
         case let (.array(l), .array(r)): l == r
         case let (.optional(l), .optional(r)): l == r
         case let (.object(l), .object(r)): l.hasSamePairs(as: r)
@@ -34,9 +40,13 @@ extension JSONSchema: Hashable {
         switch self {
         case .null: hasher.combine(0)
         case .boolean: hasher.combine(1)
-        case .integer: hasher.combine(2)
+        case .integer(let allowed):
+            hasher.combine(2)
+            hasher.combine(allowed)
         case .number: hasher.combine(3)
-        case .string: hasher.combine(4)
+        case .string(let allowed):
+            hasher.combine(4)
+            hasher.combine(allowed)
         case .array(let items):
             hasher.combine(5)
             hasher.combine(items)
