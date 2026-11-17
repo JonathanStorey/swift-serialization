@@ -12,7 +12,24 @@ private struct Contact: Codable, Equatable {
     var emails: [Email]
 }
 
+private struct Settings: Codable {
+    var theme: String
+    var fontSize: Int
+    var tags: [String]
+}
+
 @Suite struct JSONDifferenceAsTypeTests {
+    /// The example in the README.
+    @Test func readmeExample() throws {
+        let stored: JSONRepresentation = ["theme": "dark", "fontSize": 14, "tags": ["a"], "legacy": true]
+        let current = try JSONRepresentation(Settings(theme: "light", fontSize: 14, tags: ["a"]))
+        #expect(current.difference(from: stored).description == """
+            ~ $.theme: "dark" → "light"
+            - $.legacy: true
+            """)
+        #expect(try current.difference(from: stored, as: Settings.self).description == #"~ $.theme: "dark" → "light""#)
+    }
+
     @Test func missingAndNullOptionalsAreTheSame() throws {
         let stored: JSONRepresentation = ["name": "Ada", "nickname": nil, "emails": [["address": "a@x", "label": nil]]]
         let current: JSONRepresentation = ["name": "Ada", "emails": [["address": "a@x"]]]
