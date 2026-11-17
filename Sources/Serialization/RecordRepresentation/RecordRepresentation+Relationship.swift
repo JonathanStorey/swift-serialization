@@ -22,7 +22,7 @@ extension RecordRepresentation {
         /// The two fields, paired by position with ``references``.
         public private(set) var fields: [String]
         /// The two linked records' ids, paired by position with ``fields``.
-        @References<UUID> public private(set) var references: [UUID] = []
+        @References<UUID>() public private(set) var references: [UUID]
 
         /// A link between `id` through `field` and `otherID` through
         /// `otherField`, given in either order.

@@ -26,13 +26,10 @@ public struct References<Target>: Hashable, Sendable {
         self.init(ids: wrappedValue, action: action)
     }
 
-    /// References to records of any type, for lists inside this package whose
-    /// targets have different types, such as ``RecordRepresentation/Relationship``.
-    init(wrappedValue: [UUID] = [], action: RecordRepresentation.Reference.Action = .none) where Target == UUID {
-        self.init(ids: wrappedValue, action: action)
-    }
-
-    init(ids: [UUID], action: RecordRepresentation.Reference.Action) {
+    /// References with any target type, such as `References<UUID>` for a
+    /// list whose targets have different types. Internal, because Swift
+    /// requires `init(wrappedValue:)` to be as visible as the wrapper.
+    init(ids: [UUID] = [], action: RecordRepresentation.Reference.Action = .none) {
         self.wrappedValue = ids
         self.action = action
     }
@@ -65,7 +62,7 @@ extension References: Codable {
 
 extension KeyedDecodingContainer {
     public func decode<Target>(_ type: References<Target>.Type, forKey key: Key) throws -> References<Target> {
-        try decodeIfPresent(type, forKey: key) ?? References(ids: [], action: .none)
+        try decodeIfPresent(type, forKey: key) ?? References()
     }
 }
 

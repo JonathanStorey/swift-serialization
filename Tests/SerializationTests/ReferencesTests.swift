@@ -47,9 +47,10 @@ private struct Note: Codable, Hashable {
 
     @Test func untypedReferencesUseUUIDAsTheTarget() throws {
         struct Link: Codable, Hashable {
-            @References<UUID> var references: [UUID] = []
+            @References<UUID>() var references: [UUID]
         }
-        let link = Link(references: [a, b])
+        var link = Link()
+        link.references = [a, b]
         #expect(link.$references.action == .none)
         #expect(try JSONDecoder().decode(Link.self, from: JSONEncoder().encode(link)) == link)
     }
