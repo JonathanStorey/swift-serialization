@@ -208,8 +208,9 @@ note.$folder.action              // .deleteSelf
 The wrapper encodes a `RecordRepresentation.Reference`, the target's record
 name with its action, so `JSONEncoder` writes
 `{"folder":{"action":"deleteSelf","recordName":"..."},"id":"..."}`. A `nil`
-reference is left out, and a missing key decodes as `nil`. The record name is
-the encoded `id` as text, so `UUID`, `String` and integer ids all work.
+reference is left out, and a missing key decodes as `nil`. The target's `id`
+must be a `UUID`, and the record name is its `uuidString`, which is always a
+valid CloudKit record name and reads back exactly.
 
 A decoded reference keeps the action it was saved with. Swift does not pass
 the attribute's arguments to `init(from:)`, so a reference decoded as `nil`

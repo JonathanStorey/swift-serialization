@@ -14,8 +14,9 @@ import Foundation
 /// travel together. A `nil` reference is left out of a keyed container, and a
 /// missing key decodes as `nil`.
 ///
-/// The record name is the text of the encoded `id`: a string as it is, and a
-/// number as its digits. `UUID`, `String` and integer ids all work.
+/// The target's `id` must be a `UUID`, and the record name is its
+/// `uuidString`. That is always a valid CloudKit record name and reads back
+/// exactly, which a `String` id cannot promise.
 ///
 /// The action in the attribute applies to a new value. A decoded reference
 /// keeps the action it was saved with, and a decoded `nil` reference has the
@@ -23,11 +24,11 @@ import Foundation
 /// `init(from:)`. Read or change it through the projected value, as in
 /// `note.$folder.action`.
 @propertyWrapper
-public struct Reference<Target: Identifiable>: Hashable, Sendable where Target.ID: Codable & Sendable {
-    public var wrappedValue: Target.ID?
+public struct Reference<Target: Identifiable>: Hashable, Sendable where Target.ID == UUID {
+    public var wrappedValue: UUID?
     public var action: RecordRepresentation.Reference.Action
 
-    public init(wrappedValue: Target.ID? = nil, to target: Target.Type, action: RecordRepresentation.Reference.Action = .none) {
+    public init(wrappedValue: UUID? = nil, to target: Target.Type, action: RecordRepresentation.Reference.Action = .none) {
         self.wrappedValue = wrappedValue
         self.action = action
     }
@@ -46,14 +47,17 @@ extension Reference: Codable {
             self.init(to: Target.self)
         } else {
             let reference = try container.decode(RecordRepresentation.Reference.self)
-            self.init(wrappedValue: try Target.ID(recordName: reference.recordName), to: Target.self, action: reference.action)
+            guard let id = UUID(uuidString: reference.recordName) else {
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Record name \"\(reference.recordName)\" is not a UUID.")
+            }
+            self.init(wrappedValue: id, to: Target.self, action: reference.action)
         }
     }
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
         if let wrappedValue {
-            try container.encode(RecordRepresentation.Reference(recordName: try wrappedValue.recordName(), action: action))
+            try container.encode(RecordRepresentation.Reference(recordName: wrappedValue.uuidString, action: action))
         } else {
             try container.encodeNil()
         }
@@ -73,29 +77,5 @@ extension KeyedEncodingContainer {
     public mutating func encode<Target>(_ value: Reference<Target>, forKey key: Key) throws {
         guard value.wrappedValue != nil else { return }
         try encodeIfPresent(Optional(value), forKey: key)
-    }
-}
-
-private extension Encodable {
-    /// This value as a record name: a string as it is, and a number as its
-    /// text.
-    func recordName() throws -> String {
-        switch try JSONRepresentation(self) {
-        case .string(let text), .number(let text):
-            text
-        default:
-            throw EncodingError.invalidValue(self, .init(codingPath: [], debugDescription: "\(type(of: self)) does not encode as a string or a number, so it cannot be a record name."))
-        }
-    }
-}
-
-private extension Decodable {
-    /// Reads a value from a record name written by `recordName()`.
-    init(recordName: String) throws {
-        if let value = try? JSONRepresentation.string(recordName).decode(Self.self) {
-            self = value
-        } else {
-            self = try JSONRepresentation.number(recordName).decode(Self.self)
-        }
     }
 }

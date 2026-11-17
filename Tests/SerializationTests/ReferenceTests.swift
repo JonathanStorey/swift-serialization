@@ -7,12 +7,12 @@ private struct Folder: Codable, Identifiable {
 }
 
 private struct Note: Codable, Hashable, Identifiable {
-    var id: Int
+    var id: UUID
     @Reference(to: Folder.self, action: .deleteSelf) var folder: Folder.ID? = nil
 }
 
 private struct Board: Codable, Identifiable {
-    var id: Int
+    var id: UUID
 }
 
 private struct Card: Codable, Hashable {
@@ -21,6 +21,7 @@ private struct Card: Codable, Hashable {
 
 @Suite struct ReferenceTests {
     private let folderID = UUID(uuidString: "E621E1F8-C36C-495A-93FC-0C247A3E6E5F")!
+    private let noteID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
 
     private func json(_ value: some Encodable) throws -> String {
         let encoder = JSONEncoder()
@@ -29,17 +30,17 @@ private struct Card: Codable, Hashable {
     }
 
     @Test func encodesRecordNameAndAction() throws {
-        let note = Note(id: 1, folder: folderID)
-        #expect(try json(note) == #"{"folder":{"action":"deleteSelf","recordName":"E621E1F8-C36C-495A-93FC-0C247A3E6E5F"},"id":1}"#)
+        let note = Note(id: noteID, folder: folderID)
+        #expect(try json(note) == #"{"folder":{"action":"deleteSelf","recordName":"E621E1F8-C36C-495A-93FC-0C247A3E6E5F"},"id":"00000000-0000-0000-0000-000000000001"}"#)
     }
 
     @Test func leavesOutNil() throws {
-        #expect(try json(Note(id: 1, folder: nil)) == #"{"id":1}"#)
-        #expect(try JSONRepresentation(Note(id: 1, folder: nil)) == ["id": 1])
+        #expect(try json(Note(id: noteID, folder: nil)) == #"{"id":"00000000-0000-0000-0000-000000000001"}"#)
+        #expect(try JSONRepresentation(Note(id: noteID, folder: nil)) == ["id": "00000000-0000-0000-0000-000000000001"])
     }
 
     @Test func decodesMissingAndNullAsNil() throws {
-        for text in [#"{"id":1}"#, #"{"id":1,"folder":null}"#] {
+        for text in [#"{"id":"00000000-0000-0000-0000-000000000001"}"#, #"{"id":"00000000-0000-0000-0000-000000000001","folder":null}"#] {
             let note = try JSONDecoder().decode(Note.self, from: Data(text.utf8))
             #expect(note.folder == nil)
             #expect(note.$folder.action == .none)
@@ -47,7 +48,7 @@ private struct Card: Codable, Hashable {
     }
 
     @Test func roundTrips() throws {
-        let note = Note(id: 1, folder: folderID)
+        let note = Note(id: noteID, folder: folderID)
         let decoded = try JSONDecoder().decode(Note.self, from: JSONEncoder().encode(note))
         #expect(decoded == note)
         #expect(decoded.folder == folderID)
@@ -56,13 +57,13 @@ private struct Card: Codable, Hashable {
     }
 
     @Test func keepsTheSavedAction() throws {
-        let text = #"{"id":1,"folder":{"recordName":"E621E1F8-C36C-495A-93FC-0C247A3E6E5F","action":"none"}}"#
+        let text = #"{"id":"00000000-0000-0000-0000-000000000001","folder":{"recordName":"E621E1F8-C36C-495A-93FC-0C247A3E6E5F","action":"none"}}"#
         let note = try JSONDecoder().decode(Note.self, from: Data(text.utf8))
         #expect(note.$folder.action == .none)
     }
 
     @Test func attributeActionAppliesToNewValues() {
-        var note = Note(id: 1)
+        var note = Note(id: noteID)
         #expect(note.$folder.action == .deleteSelf)
         note.folder = folderID
         #expect(note.$folder.action == .deleteSelf)
@@ -71,14 +72,13 @@ private struct Card: Codable, Hashable {
         #expect(Card().$board.action == .none)
     }
 
-    @Test func integerIdsUseTheirDigits() throws {
-        let card = Card(board: 42)
-        #expect(try json(card) == #"{"board":{"action":"none","recordName":"42"}}"#)
-        #expect(try JSONDecoder().decode(Card.self, from: JSONEncoder().encode(card)) == card)
+    @Test func readsLowercaseRecordNames() throws {
+        let text = #"{"board":{"recordName":"e621e1f8-c36c-495a-93fc-0c247a3e6e5f","action":"none"}}"#
+        #expect(try JSONDecoder().decode(Card.self, from: Data(text.utf8)).board == folderID)
     }
 
-    @Test func rejectsARecordNameTheIdCannotRead() {
-        let text = #"{"board":{"recordName":"forty-two","action":"none"}}"#
+    @Test func rejectsARecordNameThatIsNotAUUID() {
+        let text = #"{"board":{"recordName":"42","action":"none"}}"#
         #expect(throws: DecodingError.self) { try JSONDecoder().decode(Card.self, from: Data(text.utf8)) }
     }
 
