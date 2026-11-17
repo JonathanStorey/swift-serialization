@@ -4,8 +4,13 @@ extension RecordRepresentation {
     /// One link in a many-to-many relationship, stored as a record of its own.
     ///
     /// It is an ordinary model, `Identifiable` by a `UUID` and `Codable` by
-    /// synthesis, except that its ``id`` is derived rather than stored. Its `references` encode as a reference list, so CloudKit
-    /// stores them as references you can follow in the Dashboard.
+    /// synthesis, except that its ``id`` is derived rather than stored. Its
+    /// `references` encode as a reference list, so CloudKit stores them as
+    /// references you can follow in the Dashboard.
+    ///
+    /// Links are created by this package, not by clients, so the initializer
+    /// has `package` access: the CloudKit target can create links, and code
+    /// outside the package can only read and pass them.
     ///
     /// A link pairs two fields with the two records it joins, by position:
     /// `fields[0]` is the field on the record `references[0]`. Linking a note
@@ -33,7 +38,7 @@ extension RecordRepresentation {
 
         /// A link between `id` through `field` and `otherID` through
         /// `otherField`, given in either order.
-        public init(_ field: String, _ id: UUID, _ otherField: String, _ otherID: UUID) {
+        package init(_ field: String, _ id: UUID, _ otherField: String, _ otherID: UUID) {
             let pairs = [(field, id), (otherField, otherID)].sorted { ($0.0, $0.1.uuidString) < ($1.0, $1.1.uuidString) }
             fields = pairs.map(\.0)
             storedReferences = pairs.map(\.1)
