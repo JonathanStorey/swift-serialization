@@ -184,7 +184,9 @@ Applying it to `stored` gives a value that `Settings` decodes the same as
 `JSONDifference` is `Codable`, `Hashable` and `Sendable`. It encodes as an
 array of changes, and its `description` is the readable form shown above.
 
-## Record references
+## CloudKit records
+
+### References
 
 `@Reference` stores a link to another `Identifiable` model as that model's
 `id`, ready for CloudKit's `CKRecord.Reference`. The generic target is
@@ -215,6 +217,26 @@ valid CloudKit record name and reads back exactly.
 A decoded reference keeps the action it was saved with. Swift does not pass
 the attribute's arguments to `init(from:)`, so a reference decoded as `nil`
 has the action `.none` until you set `$folder.action`.
+
+### Assets
+
+`@Asset` holds a file that CloudKit stores as a `CKAsset`. The property reads
+and writes `Data`, and its projected value is the file's URL, for APIs that
+work with files.
+
+```swift
+struct Note: Codable {
+    @Asset var attachment: Data? = nil
+}
+
+note.attachment = bytes                 // writes a temporary file
+note.$attachment = fileURL              // or points at a file you own
+let pdf = PDFDocument(url: note.$attachment!)
+```
+
+Reading `attachment` maps the file into memory, so bytes load only as they
+are used. The wrapper encodes the URL, not the bytes. A URL is local to one
+device, and CloudKit hands back a new one each time a record is fetched.
 
 ## Requirements
 
