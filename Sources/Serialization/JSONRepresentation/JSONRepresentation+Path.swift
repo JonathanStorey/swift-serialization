@@ -91,6 +91,45 @@ extension JSONRepresentation.Path: LosslessStringConvertible {
     }
 }
 
+// MARK: - Codable
+
+/// A path encodes as its JSONPath text, such as `"$.rooms[0].name"`.
+extension JSONRepresentation.Path: Codable {
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let text = try container.decode(String.self)
+        guard let path = Self(text) else {
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "\"\(text)\" is not a JSONPath expression of the form Path writes.")
+        }
+        self = path
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(description)
+    }
+}
+
+/// A segment encodes as a string for a key and a number for an index.
+extension JSONRepresentation.Path.Segment: Codable {
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let index = try? container.decode(Int.self) {
+            self = .index(index)
+        } else {
+            self = .key(try container.decode(String.self))
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .key(let key): try container.encode(key)
+        case .index(let index): try container.encode(index)
+        }
+    }
+}
+
 // MARK: - Lookup
 
 extension JSONRepresentation {
