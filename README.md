@@ -220,7 +220,7 @@ has the action `.none` until you set `$folder.action`.
 
 ### Reference lists
 
-`@References` holds a list of references, for many-to-many relationships.
+`@References` holds a short list of references stored on the record itself.
 It works like `@Reference`, with one action for every element.
 
 ```swift
@@ -228,6 +228,33 @@ It works like `@Reference`, with one action for every element.
 ```
 
 An empty list is left out, and a missing key decodes as an empty list.
+
+### Relationships
+
+`@Relationship` holds a to-many relationship stored as link records instead
+of a field, so it has no size limit. Each link is a
+`RecordRepresentation.Relationship` named by the declaring side, as in
+`"Note.tags"`, with the declaring record's id and then the target's. Its id
+is a stable hash of those three values, so the same link always maps to the
+same record, and the target never has to declare an inverse.
+
+```swift
+struct Note: Codable, Identifiable {
+    var id: UUID
+    @Relationship(to: Tag.self) var tags: [UUID] = []
+}
+
+note.$tags.append(newTag)               // a new tag, created with the note
+note.tags.append(existing.id)           // an existing tag, linked by id
+note.$tags.inserted                     // [newTag]
+note.$tags.added                        // [newTag.id, existing.id]
+note.$tags.removed                      // ids unlinked since the last save
+```
+
+The wrapper tracks changes since the last save, so the next save can create
+the inserted tags and add or delete their links. A held tag is only created,
+never updated, so a stale copy cannot overwrite an edit. It encodes as
+`{"ids":[...]}`, plus the pending changes while there are any.
 
 ### Encrypted values
 

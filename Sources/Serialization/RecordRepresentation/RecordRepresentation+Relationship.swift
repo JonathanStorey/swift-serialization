@@ -1,7 +1,7 @@
 import Foundation
 
 extension RecordRepresentation {
-    /// One link in a many-to-many relationship, stored as a record of its own.
+    /// One link in a relationship, stored as a record of its own.
     ///
     /// It is an ordinary model, `Identifiable` by a `UUID` and `Codable` by
     /// synthesis, except that its ``id`` is derived rather than stored. Its
@@ -12,41 +12,46 @@ extension RecordRepresentation {
     /// has `package` access: the CloudKit target can create links, and code
     /// outside the package can only read and pass them.
     ///
-    /// A link pairs two fields with the two records it joins, by position:
-    /// `fields[0]` is the field on the record `references[0]`. Linking a note
-    /// to a tag through `Note.tags` and `Tag.notes` gives
-    /// `fields == ["notes", "tags"]` and `references == [tag.id, note.id]`.
+    /// A link is named by the declaring side alone. Linking a note to a tag
+    /// through `Note.tags` gives `keyPath == "Note.tags"` and
+    /// `references == [note.id, tag.id]`, declaring record first. The target
+    /// never needs to declare an inverse, and an inverse it does declare
+    /// (`inverse: \Note.tags`) names the same key path, so both sides build
+    /// the same link. Adding or removing an inverse never changes a stored
+    /// link.
     ///
-    /// The initializer sorts the pairs by field, then id, and derives ``id``
-    /// from them, so a link has the same value whichever side creates it and
-    /// either side can add or remove it without knowing about the other. One
-    /// query, `references CONTAINS` a record, finds every link to it.
+    /// One query, `keyPath == "Note.tags" AND references CONTAINS` a record,
+    /// finds every link to it from either side.
     public struct Relationship: Codable, Hashable, Sendable, Identifiable {
-        /// The two fields, paired by position with ``references``.
-        public private(set) var fields: [String]
-        /// The two linked records' ids, paired by position with ``fields``.
+        /// The declaring type and property, as in `"Note.tags"`.
+        public private(set) var keyPath: String
+        /// The declaring record's id, then the target's id.
         @Related public private(set) var references: [UUID]
 
-        /// A link between `id` through `field` and `otherID` through
-        /// `otherField`, given in either order.
-        package init(_ field: String, _ id: UUID, _ otherField: String, _ otherID: UUID) {
-            let pairs = [(field, id), (otherField, otherID)].sorted { ($0.0, $0.1.uuidString) < ($1.0, $1.1.uuidString) }
-            fields = pairs.map(\.0)
-            _references = Related(pairs.map(\.1))
+        /// A link from `source` to `target` through `keyPath`.
+        ///
+        /// A symmetric relationship is its own inverse, like `Person.friends`.
+        /// It has no declaring side, so its ids are sorted and the link is the
+        /// same whichever record creates it.
+        package init(keyPath: String, from source: UUID, to target: UUID, symmetric: Bool = false) {
+            self.keyPath = keyPath
+            let ids = [source, target]
+            _references = Related(symmetric ? ids.sorted { $0.uuidString < $1.uuidString } : ids)
         }
 
-        /// The link's record name: a stable hash of both fields and both ids,
+        /// The link's record name: a stable hash of the key path and both ids,
         /// so the same link always maps to the same record. It is derived, so
-        /// it is never stored and can never disagree with the link.
+        /// it is never stored, never disagrees with the link, and lets a
+        /// removal delete the link without fetching it.
         public var id: UUID {
-            UUID(stableHashOf: (fields + references.map(\.uuidString)).joined(separator: "|"))
+            UUID(stableHashOf: ([keyPath] + references.map(\.uuidString)).joined(separator: "|"))
         }
     }
 }
 
 /// A list of ids encoded as ``RecordRepresentation/Reference`` values, like
 /// ``References`` but with no target type, for
-/// ``RecordRepresentation/Relationship``, whose two references point at
+/// ``RecordRepresentation/Relationship``, whose two references can point at
 /// records of different types.
 ///
 /// Only this package can create one. Clients see it only as the wrapper

@@ -8,46 +8,47 @@ import Testing
     private let note = UUID(uuidString: "00000000-0000-0000-0000-00000000000A")!
     private let tag = UUID(uuidString: "00000000-0000-0000-0000-00000000000B")!
 
-    @Test func isTheSameFromEitherSide() {
-        let fromNote = Relationship("tags", note, "notes", tag)
-        let fromTag = Relationship("notes", tag, "tags", note)
-        #expect(fromNote == fromTag)
-        #expect(fromNote.id == fromTag.id)
-        #expect(fromNote.fields == ["notes", "tags"])
-        #expect(fromNote.references == [tag, note])
+    @Test func putsTheDeclaringRecordFirst() {
+        let link = Relationship(keyPath: "Note.tags", from: note, to: tag)
+        #expect(link.keyPath == "Note.tags")
+        #expect(link.references == [note, tag])
     }
 
-    @Test func differentFieldsAreDifferentLinks() {
-        #expect(Relationship("authors", note, "notes", tag).id != Relationship("tags", note, "notes", tag).id)
+    @Test func differentKeyPathsAreDifferentLinks() {
+        #expect(Relationship(keyPath: "Photo.tags", from: note, to: tag).id != Relationship(keyPath: "Note.tags", from: note, to: tag).id)
     }
 
     @Test func differentRecordsAreDifferentLinks() {
-        #expect(Relationship("tags", note, "notes", UUID()).id != Relationship("tags", note, "notes", tag).id)
+        #expect(Relationship(keyPath: "Note.tags", from: note, to: UUID()).id != Relationship(keyPath: "Note.tags", from: note, to: tag).id)
     }
 
-    @Test func selfRelationshipsSortByID() {
-        let link = Relationship("friends", tag, "friends", note)
-        #expect(link == Relationship("friends", note, "friends", tag))
+    @Test func directionMatters() {
+        #expect(Relationship(keyPath: "Person.follows", from: tag, to: note) != Relationship(keyPath: "Person.follows", from: note, to: tag))
+    }
+
+    @Test func symmetricRelationshipsSortByID() {
+        let link = Relationship(keyPath: "Person.friends", from: tag, to: note, symmetric: true)
+        #expect(link == Relationship(keyPath: "Person.friends", from: note, to: tag, symmetric: true))
         #expect(link.references == [note, tag])
     }
 
     @Test func idIsStable() {
-        #expect(Relationship("tags", note, "notes", tag).id == UUID(stableHashOf: "notes|tags|00000000-0000-0000-0000-00000000000B|00000000-0000-0000-0000-00000000000A"))
+        #expect(Relationship(keyPath: "Note.tags", from: note, to: tag).id == UUID(stableHashOf: "Note.tags|00000000-0000-0000-0000-00000000000A|00000000-0000-0000-0000-00000000000B"))
     }
 
     @Test func encodesLikeAModel() throws {
-        let link = Relationship("tags", note, "notes", tag)
+        let link = Relationship(keyPath: "Note.tags", from: note, to: tag)
         let json = try JSONRepresentation(link)
         #expect(json["id"] == nil)
-        #expect(json["fields"] == ["notes", "tags"])
+        #expect(json["keyPath"] == "Note.tags")
         #expect(json["references"] == [
-            ["recordName": .string(tag.uuidString), "action": "none"],
             ["recordName": .string(note.uuidString), "action": "none"],
+            ["recordName": .string(tag.uuidString), "action": "none"],
         ])
     }
 
     @Test func roundTrips() throws {
-        let link = Relationship("tags", note, "notes", tag)
+        let link = Relationship(keyPath: "Note.tags", from: note, to: tag)
         #expect(try JSONDecoder().decode(Relationship.self, from: JSONEncoder().encode(link)) == link)
         #expect(try JSONRepresentation(link).decode(Relationship.self) == link)
     }
