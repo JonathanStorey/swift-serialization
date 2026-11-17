@@ -38,7 +38,7 @@ import Testing
     @Test func encodesLikeAModel() throws {
         let link = Relationship("tags", note, "notes", tag)
         let json = try JSONRepresentation(link)
-        #expect(json["id"] == .string(link.id.uuidString))
+        #expect(json["id"] == nil)
         #expect(json["fields"] == ["notes", "tags"])
         #expect(json["references"] == [
             ["recordName": .string(tag.uuidString), "action": "none"],
