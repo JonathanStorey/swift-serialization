@@ -44,7 +44,6 @@ import Testing
             ["recordName": .string(tag.uuidString), "action": "none"],
             ["recordName": .string(note.uuidString), "action": "none"],
         ])
-        #expect(link.$references.action == .none)
     }
 
     @Test func roundTrips() throws {

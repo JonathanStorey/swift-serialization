@@ -17,20 +17,12 @@ import Foundation
 /// An empty list is left out of a keyed container, and a missing key decodes
 /// as an empty list.
 @propertyWrapper
-public struct References<Target>: Hashable, Sendable {
+public struct References<Target: Identifiable>: Hashable, Sendable where Target.ID == UUID {
     public var wrappedValue: [UUID]
     public var action: RecordRepresentation.Reference.Action
 
-    /// References to records of type `Target`.
-    public init(wrappedValue: [UUID] = [], to target: Target.Type, action: RecordRepresentation.Reference.Action = .none) where Target: Identifiable, Target.ID == UUID {
-        self.init(ids: wrappedValue, action: action)
-    }
-
-    /// References with any target type, such as `References<UUID>` for a
-    /// list whose targets have different types. Internal, because Swift
-    /// requires `init(wrappedValue:)` to be as visible as the wrapper.
-    init(ids: [UUID] = [], action: RecordRepresentation.Reference.Action = .none) {
-        self.wrappedValue = ids
+    public init(wrappedValue: [UUID] = [], to target: Target.Type, action: RecordRepresentation.Reference.Action = .none) {
+        self.wrappedValue = wrappedValue
         self.action = action
     }
 
@@ -51,7 +43,7 @@ extension References: Codable {
             }
             return id
         }
-        self.init(ids: ids, action: references.first?.action ?? .none)
+        self.init(wrappedValue: ids, to: Target.self, action: references.first?.action ?? .none)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -62,7 +54,7 @@ extension References: Codable {
 
 extension KeyedDecodingContainer {
     public func decode<Target>(_ type: References<Target>.Type, forKey key: Key) throws -> References<Target> {
-        try decodeIfPresent(type, forKey: key) ?? References()
+        try decodeIfPresent(type, forKey: key) ?? References(to: Target.self)
     }
 }
 

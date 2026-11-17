@@ -3,9 +3,9 @@ import Foundation
 extension RecordRepresentation {
     /// One link in a many-to-many relationship, stored as a record of its own.
     ///
-    /// It is an ordinary model: `Identifiable` by a `UUID`, `Codable` by
-    /// synthesis, and holding its links with `@References`, so CloudKit stores
-    /// them as a reference list you can follow in the Dashboard.
+    /// It is an ordinary model: `Identifiable` by a `UUID` and `Codable` by
+    /// synthesis. Its `references` encode as a reference list, so CloudKit
+    /// stores them as references you can follow in the Dashboard.
     ///
     /// A link pairs two fields with the two records it joins, by position:
     /// `fields[0]` is the field on the record `references[0]`. Linking a note
@@ -22,7 +22,7 @@ extension RecordRepresentation {
         /// The two fields, paired by position with ``references``.
         public private(set) var fields: [String]
         /// The two linked records' ids, paired by position with ``fields``.
-        @References<UUID>() public private(set) var references: [UUID]
+        @Related public private(set) var references: [UUID] = []
 
         /// A link between `id` through `field` and `otherID` through
         /// `otherField`, given in either order.
@@ -34,5 +34,32 @@ extension RecordRepresentation {
             self.fields = fields
             self.references = ids
         }
+    }
+}
+
+/// Encodes a list of ids as ``RecordRepresentation/Reference`` values, like
+/// ``References``, for ``RecordRepresentation/Relationship``, whose two
+/// references point at records of different types.
+@propertyWrapper
+private struct Related: Codable, Hashable, Sendable {
+    var wrappedValue: [UUID]
+
+    init(wrappedValue: [UUID]) {
+        self.wrappedValue = wrappedValue
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        wrappedValue = try container.decode([RecordRepresentation.Reference].self).map { reference in
+            guard let id = UUID(uuidString: reference.recordName) else {
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Record name \"\(reference.recordName)\" is not a UUID.")
+            }
+            return id
+        }
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(wrappedValue.map { RecordRepresentation.Reference(recordName: $0.uuidString) })
     }
 }
