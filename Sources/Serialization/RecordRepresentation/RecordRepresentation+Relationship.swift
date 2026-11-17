@@ -3,90 +3,68 @@ import Foundation
 extension RecordRepresentation {
     /// One link in a many-to-many relationship, stored as a record of its own.
     ///
-    /// A link joins two endpoints. Each endpoint is a field on a record type
-    /// and the id of one record of that type, such as the `tags` field of the
-    /// `Note` whose id is `n`. The relationship is the pair of fields, so
-    /// `Note.tags` with `Tag.notes` is one relationship and `Note.authors`
-    /// with `Person.notes` is another, even between the same records.
+    /// A link pairs two fields with the two records it joins, by position:
+    /// `fields[0]` is the field on the record `references[0]`. Linking a note
+    /// to a tag through `Note.tags` and `Tag.notes` gives
+    /// `fields == ["notes", "tags"]` and `references == [tag.id, note.id]`.
     ///
-    /// The endpoints are kept in canonical order, sorted by record type, then
-    /// field, then id. A link therefore has the same value, ``name`` and
-    /// ``id`` whichever side creates it, so either side can add or remove it
-    /// without knowing about the other.
+    /// The pairs are kept sorted by field, then id, so a link has the same
+    /// value and ``id`` whichever side creates it, and either side can add or
+    /// remove it without knowing about the other.
     ///
-    /// ```swift
-    /// let link = RecordRepresentation.Relationship(
-    ///     .init(recordType: "Tag", field: "notes", id: tag.id),
-    ///     .init(recordType: "Note", field: "tags", id: note.id)
-    /// )
-    /// link.first.recordType   // "Note"
-    /// link.name               // "Note.tags|Tag.notes"
-    /// ```
+    /// `references` is stored as a CloudKit reference list, so one query,
+    /// `references CONTAINS` a record, finds every link to it, including
+    /// links between two records of the same type.
     public struct Relationship: Hashable, Sendable, Identifiable {
-        /// One side of a link.
-        public struct Endpoint: Codable, Hashable, Sendable {
-            /// The record type, such as `"Note"`.
-            public var recordType: String
-            /// The field's coding key, such as `"tags"`.
-            public var field: String
-            /// The id of the record on this side.
-            public var id: UUID
+        /// The two fields, paired by position with ``references``.
+        public let fields: [String]
+        /// The two linked records' ids, paired by position with ``fields``.
+        public let references: [UUID]
 
-            public init(recordType: String, field: String, id: UUID) {
-                self.recordType = recordType
-                self.field = field
-                self.id = id
-            }
+        /// A link between `id` through `field` and `otherID` through
+        /// `otherField`, given in either order.
+        public init(_ field: String, _ id: UUID, _ otherField: String, _ otherID: UUID) {
+            let pairs = [(field, id), (otherField, otherID)].sorted { ($0.0, $0.1.uuidString) < ($1.0, $1.1.uuidString) }
+            fields = pairs.map(\.0)
+            references = pairs.map(\.1)
         }
 
-        /// The endpoint that sorts first.
-        public let first: Endpoint
-        /// The endpoint that sorts second.
-        public let second: Endpoint
-
-        /// A link between two endpoints, given in either order.
-        public init(_ endpoint: Endpoint, _ other: Endpoint) {
-            (first, second) = endpoint.sortsBefore(other) ? (endpoint, other) : (other, endpoint)
-        }
-
-        /// The relationship this link belongs to, such as
-        /// `"Note.tags|Tag.notes"`. Every link between the same two fields
-        /// shares it. Record types and fields cannot contain `.` or `|`, so
-        /// the name is unambiguous.
-        public var name: String {
-            "\(first.recordType).\(first.field)|\(second.recordType).\(second.field)"
-        }
-
-        /// The link's record name: a stable hash of ``name`` and both ids, so
-        /// the same link always maps to the same record and can be saved or
+        /// The link's record name: a stable hash of both fields and both ids,
+        /// so the same link always maps to the same record and can be saved or
         /// deleted without a query.
         public var id: UUID {
-            UUID(stableHashOf: "\(name)|\(first.id.uuidString)|\(second.id.uuidString)")
+            UUID(stableHashOf: (fields + references.map(\.uuidString)).joined(separator: "|"))
         }
     }
 }
 
-/// Encodes the two endpoints as `first` and `second`. Decoding puts them back
-/// in canonical order, so a link read from anywhere keeps its identity.
+/// Encodes `fields` as strings and `references` as
+/// ``RecordRepresentation/Reference`` values, a reference list in CloudKit.
+/// Decoding requires exactly two of each and restores the sorted order.
 extension RecordRepresentation.Relationship: Codable {
     private enum CodingKeys: String, CodingKey {
-        case first, second
+        case fields, references
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.init(try container.decode(Endpoint.self, forKey: .first), try container.decode(Endpoint.self, forKey: .second))
+        let fields = try container.decode([String].self, forKey: .fields)
+        let references = try container.decode([RecordRepresentation.Reference].self, forKey: .references)
+        guard fields.count == 2, references.count == 2 else {
+            throw DecodingError.dataCorruptedError(forKey: .fields, in: container, debugDescription: "A relationship needs exactly two fields and two references.")
+        }
+        let ids = try references.map { reference in
+            guard let id = UUID(uuidString: reference.recordName) else {
+                throw DecodingError.dataCorruptedError(forKey: .references, in: container, debugDescription: "Record name \"\(reference.recordName)\" is not a UUID.")
+            }
+            return id
+        }
+        self.init(fields[0], ids[0], fields[1], ids[1])
     }
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(first, forKey: .first)
-        try container.encode(second, forKey: .second)
-    }
-}
-
-private extension RecordRepresentation.Relationship.Endpoint {
-    func sortsBefore(_ other: Self) -> Bool {
-        (recordType, field, id.uuidString) < (other.recordType, other.field, other.id.uuidString)
+        try container.encode(fields, forKey: .fields)
+        try container.encode(references.map { RecordRepresentation.Reference(recordName: $0.uuidString) }, forKey: .references)
     }
 }
