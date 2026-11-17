@@ -227,9 +227,7 @@ It works like `@Reference`, with one action for every element.
 @References(to: Tag.self) var tags: [UUID] = []
 ```
 
-An empty list is left out, and a missing key decodes as an empty list. When
-the targets have different types, use `UUID` as the target:
-`@References<UUID> var references: [UUID] = []`.
+An empty list is left out, and a missing key decodes as an empty list.
 
 ### Encrypted values
 

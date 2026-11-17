@@ -16,13 +16,6 @@ import Foundation
 /// the action of its first element, and an empty list decodes with `.none`.
 /// An empty list is left out of a keyed container, and a missing key decodes
 /// as an empty list.
-///
-/// When the target type is not known, as when a list points at records of
-/// different types, use `UUID` as the target:
-///
-/// ```swift
-/// @References<UUID> var references: [UUID] = []
-/// ```
 @propertyWrapper
 public struct References<Target>: Hashable, Sendable {
     public var wrappedValue: [UUID]
@@ -33,8 +26,9 @@ public struct References<Target>: Hashable, Sendable {
         self.init(ids: wrappedValue, action: action)
     }
 
-    /// References to records of any type.
-    public init(wrappedValue: [UUID] = [], action: RecordRepresentation.Reference.Action = .none) where Target == UUID {
+    /// References to records of any type, for lists inside this package whose
+    /// targets have different types, such as ``RecordRepresentation/Relationship``.
+    init(wrappedValue: [UUID] = [], action: RecordRepresentation.Reference.Action = .none) where Target == UUID {
         self.init(ids: wrappedValue, action: action)
     }
 
