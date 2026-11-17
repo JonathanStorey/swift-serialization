@@ -25,23 +25,14 @@ extension RecordRepresentation {
         /// The two fields, paired by position with ``references``.
         public private(set) var fields: [String]
         /// The two linked records' ids, paired by position with ``fields``.
-        public var references: [UUID] { storedReferences }
-
-        // A public property cannot use a private wrapper, so the wrapped
-        // storage is private and encodes under the key `references`.
-        @Related private var storedReferences: [UUID] = []
-
-        private enum CodingKeys: String, CodingKey {
-            case fields
-            case storedReferences = "references"
-        }
+        @Related([]) public private(set) var references: [UUID]
 
         /// A link between `id` through `field` and `otherID` through
         /// `otherField`, given in either order.
         package init(_ field: String, _ id: UUID, _ otherField: String, _ otherID: UUID) {
             let pairs = [(field, id), (otherField, otherID)].sorted { ($0.0, $0.1.uuidString) < ($1.0, $1.1.uuidString) }
             fields = pairs.map(\.0)
-            storedReferences = pairs.map(\.1)
+            references = pairs.map(\.1)
         }
 
         /// The link's record name: a stable hash of both fields and both ids,
@@ -53,18 +44,22 @@ extension RecordRepresentation {
     }
 }
 
-/// Encodes a list of ids as ``RecordRepresentation/Reference`` values, like
-/// ``References``, for ``RecordRepresentation/Relationship``, whose two
-/// references point at records of different types.
+/// A list of ids encoded as ``RecordRepresentation/Reference`` values, like
+/// ``References`` but with no target type, for
+/// ``RecordRepresentation/Relationship``, whose two references point at
+/// records of different types.
+///
+/// Only this package can create one. Clients see it only as the wrapper
+/// behind `Relationship.references`.
 @propertyWrapper
-private struct Related: Codable, Hashable, Sendable {
-    var wrappedValue: [UUID]
+public struct Related: Codable, Hashable, Sendable {
+    public var wrappedValue: [UUID]
 
-    init(wrappedValue: [UUID]) {
-        self.wrappedValue = wrappedValue
+    package init(_ ids: [UUID]) {
+        wrappedValue = ids
     }
 
-    init(from decoder: any Decoder) throws {
+    public init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()
         wrappedValue = try container.decode([RecordRepresentation.Reference].self).map { reference in
             guard let id = UUID(uuidString: reference.recordName) else {
@@ -74,7 +69,7 @@ private struct Related: Codable, Hashable, Sendable {
         }
     }
 
-    func encode(to encoder: any Encoder) throws {
+    public func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
         try container.encode(wrappedValue.map { RecordRepresentation.Reference(recordName: $0.uuidString) })
     }
