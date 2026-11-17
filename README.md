@@ -218,6 +218,31 @@ A decoded reference keeps the action it was saved with. Swift does not pass
 the attribute's arguments to `init(from:)`, so a reference decoded as `nil`
 has the action `.none` until you set `$folder.action`.
 
+### Reference lists
+
+`@References` holds a list of references, for many-to-many relationships.
+It works like `@Reference`, with one action for every element.
+
+```swift
+@References(to: Tag.self) var tags: [UUID] = []
+```
+
+An empty list is left out, and a missing key decodes as an empty list.
+
+### Encrypted values
+
+`@Encrypted` marks a property that CloudKit stores encrypted end to end. It
+encodes exactly as its value does, so JSON is unchanged.
+
+```swift
+@Encrypted var body: String = ""
+@Encrypted var pin: Int? = nil
+```
+
+CloudKit can encrypt strings, numbers, dates, data, locations and lists of
+them, but not references or assets. Encrypted fields cannot be queried,
+sorted or indexed.
+
 ### Assets
 
 `@Asset` holds a file that CloudKit stores as a `CKAsset`. The property reads
