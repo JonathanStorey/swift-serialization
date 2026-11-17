@@ -252,7 +252,10 @@ note.$tags.removed                      // ids unlinked since the last save
 ```
 
 The wrapper tracks changes since the last save, so the next save can create
-the inserted tags and add or delete their links. A held tag is only created,
+the inserted tags and add or delete their links. Each link stores an integer
+`order` that keeps its value while the orders still increase, so a delete
+writes nothing else, an append writes one link, and a move writes only the
+links that no longer sort. A held tag is only created,
 never updated, so a stale copy cannot overwrite an edit. It encodes as
 `{"ids":[...]}`, plus the pending changes while there are any.
 

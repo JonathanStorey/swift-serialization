@@ -27,20 +27,26 @@ extension RecordRepresentation {
         public private(set) var keyPath: String
         /// The declaring record's id, then the target's id.
         @Related public private(set) var references: [UUID]
+        /// The target's position in the declaring record's list. Orders only
+        /// need to increase, so deleting a link never renumbers the others.
+        public private(set) var order: Int
 
-        /// A link from `source` to `target` through `keyPath`.
+        /// A link from `source` to `target` through `keyPath`, at `order` in
+        /// the source's list.
         ///
         /// A symmetric relationship is its own inverse, like `Person.friends`.
         /// It has no declaring side, so its ids are sorted and the link is the
         /// same whichever record creates it.
-        package init(keyPath: String, from source: UUID, to target: UUID, symmetric: Bool = false) {
+        package init(keyPath: String, from source: UUID, to target: UUID, order: Int = 0, symmetric: Bool = false) {
             self.keyPath = keyPath
+            self.order = order
             let ids = [source, target]
             _references = Related(symmetric ? ids.sorted { $0.uuidString < $1.uuidString } : ids)
         }
 
         /// The link's record name: a stable hash of the key path and both ids,
-        /// so the same link always maps to the same record. It is derived, so
+        /// so the same link always maps to the same record, and moving it
+        /// updates that record in place. It is derived, so
         /// it is never stored, never disagrees with the link, and lets a
         /// removal delete the link without fetching it.
         public var id: UUID {

@@ -12,6 +12,13 @@ import Testing
         let link = Relationship(keyPath: "Note.tags", from: note, to: tag)
         #expect(link.keyPath == "Note.tags")
         #expect(link.references == [note, tag])
+        #expect(link.order == 0)
+    }
+
+    @Test func orderIsNotPartOfTheID() {
+        let link = Relationship(keyPath: "Note.tags", from: note, to: tag, order: 3)
+        #expect(link.id == Relationship(keyPath: "Note.tags", from: note, to: tag).id)
+        #expect(link != Relationship(keyPath: "Note.tags", from: note, to: tag))
     }
 
     @Test func differentKeyPathsAreDifferentLinks() {
@@ -37,7 +44,7 @@ import Testing
     }
 
     @Test func encodesLikeAModel() throws {
-        let link = Relationship(keyPath: "Note.tags", from: note, to: tag)
+        let link = Relationship(keyPath: "Note.tags", from: note, to: tag, order: 2)
         let json = try JSONRepresentation(link)
         #expect(json["id"] == nil)
         #expect(json["keyPath"] == "Note.tags")
@@ -45,6 +52,7 @@ import Testing
             ["recordName": .string(note.uuidString), "action": "none"],
             ["recordName": .string(tag.uuidString), "action": "none"],
         ])
+        #expect(json["order"] == 2)
     }
 
     @Test func roundTrips() throws {

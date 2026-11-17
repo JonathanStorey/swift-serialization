@@ -15,6 +15,7 @@ private struct Note: Codable, Hashable {
     private let note = UUID(uuidString: "00000000-0000-0000-0000-00000000000A")!
     private let a = UUID(uuidString: "00000000-0000-0000-0000-0000000000A1")!
     private let b = UUID(uuidString: "00000000-0000-0000-0000-0000000000B2")!
+    private let c = UUID(uuidString: "00000000-0000-0000-0000-0000000000C3")!
 
     private func json(_ value: some Encodable) throws -> String {
         let encoder = JSONEncoder()
@@ -67,8 +68,66 @@ private struct Note: Codable, Hashable {
         var model = try fetched([a])
         model.tags = [b]
         let changes = model.$tags.changes(keyPath: "Note.tags", from: note)
-        #expect(changes.added == [RecordRepresentation.Relationship(keyPath: "Note.tags", from: note, to: b)])
-        #expect(changes.removed.map(\.id) == [RecordRepresentation.Relationship(keyPath: "Note.tags", from: note, to: a).id])
+        #expect(changes.save == [RecordRepresentation.Relationship(keyPath: "Note.tags", from: note, to: b)])
+        #expect(changes.delete.map(\.id) == [RecordRepresentation.Relationship(keyPath: "Note.tags", from: note, to: a).id])
+    }
+
+    /// The ids and orders of the links a save would write.
+    private func saves(_ model: Note) -> [UUID: Int] {
+        Dictionary(uniqueKeysWithValues: model.$tags.changes(keyPath: "Note.tags", from: note).save.map { ($0.references[1], $0.order) })
+    }
+
+    @Test func newLinksAreNumberedInOrder() {
+        #expect(saves(Note(tags: [a, b, c])) == [a: 0, b: 1, c: 2])
+    }
+
+    @Test func deletesLeaveTheOtherOrdersAlone() throws {
+        var model = try fetched([a, b, c])
+        model.tags = [a, c]
+        #expect(saves(model).isEmpty)
+        #expect(model.$tags.changes(keyPath: "Note.tags", from: note).delete.count == 1)
+    }
+
+    @Test func appendWritesOneLinkAfterTheLast() {
+        var model = Note(tags: [])
+        model.$tags = Relationship(links(a: 0, c: 5))
+        model.tags.append(b)
+        #expect(saves(model) == [b: 6])
+    }
+
+    @Test func insertWritesTheLinksThatNoLongerSort() throws {
+        var model = try fetched([a, c])
+        model.tags = [a, b, c]
+        #expect(saves(model) == [b: 1, c: 2])
+    }
+
+    @Test func moveKeepsOrdersThatStillIncrease() throws {
+        var model = try fetched([a, b, c])
+        model.tags = [b, c, a]
+        #expect(saves(model) == [a: 3])
+    }
+
+    @Test func fetchedLinksSortByOrder() {
+        let model = Relationship<Tag>(links(a: 4, b: 0, c: 2))
+        #expect(model.wrappedValue == [b, c, a])
+        #expect(model.added.isEmpty)
+        #expect(model.changes(keyPath: "Note.tags", from: note).save.isEmpty)
+    }
+
+    @Test func gapsSurviveALocalCopy() throws {
+        var model = Note()
+        model.$tags = Relationship(links(a: 0, c: 5))
+        let decoded = try JSONDecoder().decode(Note.self, from: JSONEncoder().encode(model))
+        #expect(decoded == model)
+        var copy = decoded
+        copy.tags.append(b)
+        #expect(saves(copy) == [b: 6])
+    }
+
+    private func links(a: Int? = nil, b: Int? = nil, c: Int? = nil) -> [RecordRepresentation.Relationship] {
+        [(self.a, a), (self.b, b), (self.c, c)].compactMap { id, order in
+            order.map { RecordRepresentation.Relationship(keyPath: "Note.tags", from: note, to: id, order: $0) }
+        }
     }
 
     @Test func commitClearsTheChanges() {

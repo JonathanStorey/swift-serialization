@@ -1,7 +1,7 @@
 import Foundation
 
-/// A to-many relationship stored as link records instead of a field, so it
-/// has no size limit and no limit on cascading deletes.
+/// An ordered to-many relationship stored as link records instead of a
+/// field, so it has no size limit and no limit on cascading deletes.
 ///
 /// ```swift
 /// struct Note: Codable, Identifiable {
@@ -14,12 +14,17 @@ import Foundation
 /// note.tags.removeAll { $0 == old.id }
 /// ```
 ///
-/// The property reads and writes the targets' ids, and the wrapper tracks
-/// what changed since the last save, like a `ModelContext`:
+/// The property reads and writes the targets' ids in order, and the wrapper
+/// tracks what changed since the last save, like a `ModelContext`:
 ///
 /// - ``inserted`` holds new targets appended through ``append(_:)``, so one
 ///   save can create them along with their links.
 /// - ``added`` and ``removed`` are the ids linked and unlinked.
+///
+/// Each link stores an integer order. A link keeps its saved order for as
+/// long as the orders still increase, so a delete writes nothing but the
+/// deletion, an append writes one link, and a move writes the moved link and
+/// any after it that no longer sort.
 ///
 /// A wrapper cannot see the model that holds it, so the encoder supplies the
 /// declaring key path and record when it builds the links with
@@ -37,8 +42,8 @@ public struct Relationship<Target: Identifiable & Codable> where Target.ID == UU
     /// New targets to create with this relationship's next save.
     public private(set) var inserted: [Target] = []
 
-    /// The ids linked at the last save or fetch.
-    private var saved: Set<UUID> = []
+    /// The order of each id linked at the last save or fetch.
+    private var saved: [UUID: Int] = [:]
 
     public init(wrappedValue: [UUID] = [], to target: Target.Type) {
         self.wrappedValue = wrappedValue
@@ -53,12 +58,12 @@ public struct Relationship<Target: Identifiable & Codable> where Target.ID == UU
 
     /// The ids linked since the last save.
     public var added: Set<UUID> {
-        Set(wrappedValue).subtracting(saved)
+        Set(wrappedValue.filter { saved[$0] == nil })
     }
 
     /// The ids unlinked since the last save.
     public var removed: Set<UUID> {
-        saved.subtracting(wrappedValue)
+        Set(saved.keys).subtracting(wrappedValue)
     }
 
     /// Links a new target and holds it to be created with the next save.
@@ -73,18 +78,46 @@ public struct Relationship<Target: Identifiable & Codable> where Target.ID == UU
 }
 
 extension Relationship {
-    /// The link records to save and to delete, for the record `source` that
-    /// declares this relationship at `keyPath`, as in `"Note.tags"`.
-    package func changes(keyPath: String, from source: UUID) -> (added: [RecordRepresentation.Relationship], removed: [RecordRepresentation.Relationship]) {
-        let link = { RecordRepresentation.Relationship(keyPath: keyPath, from: source, to: $0) }
-        return (wrappedValue.filter(added.contains).map(link), removed.sorted { $0.uuidString < $1.uuidString }.map(link))
+    /// A fetched relationship, from the links its declaring record owns,
+    /// in any order.
+    package init(_ links: [RecordRepresentation.Relationship]) {
+        let sorted = links.sorted { $0.order < $1.order }
+        self.init(wrappedValue: sorted.map { $0.references[1] }, to: Target.self)
+        saved = Dictionary(sorted.map { ($0.references[1], $0.order) }, uniquingKeysWith: { first, _ in first })
     }
 
-    /// Marks the current ids as saved and drops the inserted targets, after
-    /// a save succeeds.
+    /// The link records to save and to delete, for the record `source` that
+    /// declares this relationship at `keyPath`, as in `"Note.tags"`. Links
+    /// are saved when they are new or their order changed.
+    package func changes(keyPath: String, from source: UUID) -> (save: [RecordRepresentation.Relationship], delete: [RecordRepresentation.Relationship]) {
+        let orders = self.orders
+        let save = wrappedValue.filter { saved[$0] != orders[$0] }.map {
+            RecordRepresentation.Relationship(keyPath: keyPath, from: source, to: $0, order: orders[$0, default: 0])
+        }
+        let delete = removed.sorted { $0.uuidString < $1.uuidString }.map {
+            RecordRepresentation.Relationship(keyPath: keyPath, from: source, to: $0, order: saved[$0, default: 0])
+        }
+        return (save, delete)
+    }
+
+    /// Records the orders just saved and drops the inserted targets, after a
+    /// save succeeds.
     package mutating func commit() {
-        saved = Set(wrappedValue)
+        saved = orders
         inserted = []
+    }
+
+    /// The order to save each id with: its saved order while the orders
+    /// still increase, or else one more than the previous id's.
+    private var orders: [UUID: Int] {
+        var orders: [UUID: Int] = [:]
+        var previous = -1
+        for id in wrappedValue {
+            let order = saved[id].flatMap { $0 > previous ? $0 : nil } ?? previous + 1
+            orders[id] = order
+            previous = order
+        }
+        return orders
     }
 }
 
@@ -92,9 +125,10 @@ extension Relationship: Equatable where Target: Equatable {}
 extension Relationship: Hashable where Target: Hashable {}
 extension Relationship: Sendable where Target: Sendable {}
 
-/// Encodes as `{"ids": [...]}`, with `saved` and `inserted` added only while
-/// there are unsaved changes, so a local copy keeps them. A decoded
-/// relationship with no `saved` key is clean, as one fetched from a server is.
+/// Encodes as `{"ids": [...]}`. It adds `saved`, each saved id's order, when
+/// those differ from the ids' positions, and `inserted` while there are new
+/// targets, so a local copy keeps its changes and its gaps. A decoded
+/// relationship with no `saved` key is clean, ordered by position.
 extension Relationship: Codable {
     private enum CodingKeys: String, CodingKey {
         case ids, saved, inserted
@@ -104,19 +138,35 @@ extension Relationship: Codable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let ids = try container.decode([UUID].self, forKey: .ids)
         self.init(wrappedValue: ids, to: Target.self)
-        saved = try container.decodeIfPresent(Set<UUID>.self, forKey: .saved) ?? Set(ids)
+        if let orders = try container.decodeIfPresent([String: Int].self, forKey: .saved) {
+            saved = try Dictionary(uniqueKeysWithValues: orders.map { entry in
+                guard let id = UUID(uuidString: entry.key) else {
+                    throw DecodingError.dataCorruptedError(forKey: .saved, in: container, debugDescription: "\"\(entry.key)\" is not a UUID.")
+                }
+                return (id, entry.value)
+            })
+        } else {
+            saved = ids.positions
+        }
         inserted = try container.decodeIfPresent([Target].self, forKey: .inserted) ?? []
     }
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(wrappedValue, forKey: .ids)
-        if saved != Set(wrappedValue) {
-            try container.encode(saved.sorted { $0.uuidString < $1.uuidString }, forKey: .saved)
+        if saved != wrappedValue.positions {
+            try container.encode(Dictionary(uniqueKeysWithValues: saved.map { ($0.key.uuidString, $0.value) }), forKey: .saved)
         }
         if !inserted.isEmpty {
             try container.encode(inserted, forKey: .inserted)
         }
+    }
+}
+
+private extension Array where Element == UUID {
+    /// Each id's position, the orders of a list saved with no gaps.
+    var positions: [UUID: Int] {
+        Dictionary(zip(self, indices), uniquingKeysWith: { first, _ in first })
     }
 }
 
