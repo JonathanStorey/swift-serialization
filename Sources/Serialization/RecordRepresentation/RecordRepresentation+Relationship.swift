@@ -25,14 +25,14 @@ extension RecordRepresentation {
         /// The two fields, paired by position with ``references``.
         public private(set) var fields: [String]
         /// The two linked records' ids, paired by position with ``fields``.
-        @Related([]) public private(set) var references: [UUID]
+        @Related public private(set) var references: [UUID]
 
         /// A link between `id` through `field` and `otherID` through
         /// `otherField`, given in either order.
         package init(_ field: String, _ id: UUID, _ otherField: String, _ otherID: UUID) {
             let pairs = [(field, id), (otherField, otherID)].sorted { ($0.0, $0.1.uuidString) < ($1.0, $1.1.uuidString) }
             fields = pairs.map(\.0)
-            references = pairs.map(\.1)
+            _references = Related(pairs.map(\.1))
         }
 
         /// The link's record name: a stable hash of both fields and both ids,
