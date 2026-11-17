@@ -39,9 +39,11 @@ extension RecordRepresentation {
         /// `otherField`, given in either order.
         public init(_ field: String, _ id: UUID, _ otherField: String, _ otherID: UUID) {
             let pairs = [(field, id), (otherField, otherID)].sorted { ($0.0, $0.1.uuidString) < ($1.0, $1.1.uuidString) }
-            fields = pairs.map(\.0)
-            references = pairs.map(\.1)
-            self.id = UUID(stableHashOf: (fields + references.map(\.uuidString)).joined(separator: "|"))
+            let fields = pairs.map(\.0)
+            let ids = pairs.map(\.1)
+            self.id = UUID(stableHashOf: (fields + ids.map(\.uuidString)).joined(separator: "|"))
+            self.fields = fields
+            self.references = ids
         }
     }
 }
