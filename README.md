@@ -233,7 +233,7 @@ An empty list is left out, and a missing key decodes as an empty list.
 
 `@Relationship` holds a to-many relationship stored as link records instead
 of a field, so it has no size limit. Each link is a
-`RecordRepresentation.Relationship` named by the declaring side, as in
+`RecordRepresentation.Link` named by the declaring side, as in
 `"Note.tags"`, with the declaring record's id and then the target's. Its id
 is a stable hash of those three values, so the same link always maps to the
 same record, and the target never has to declare an inverse.
@@ -249,15 +249,19 @@ note.tags.append(existing.id)           // an existing tag, linked by id
 note.$tags.inserted                     // [newTag]
 note.$tags.added                        // [newTag.id, existing.id]
 note.$tags.removed                      // ids unlinked since the last save
+note.$tags.links                        // the stored links, sorted by order
 ```
 
 The wrapper tracks changes since the last save, so the next save can create
 the inserted tags and add or delete their links. Each link stores an integer
 `order` that keeps its value while the orders still increase, so a delete
 writes nothing else, an append writes one link, and a move writes only the
-links that no longer sort. A held tag is only created,
-never updated, so a stale copy cannot overwrite an edit. It encodes as
-`{"ids":[...]}`, plus the pending changes while there are any.
+links that no longer sort. A held tag is only created, never updated, so a
+stale copy cannot overwrite an edit.
+
+The wrapper holds the links as they were last saved or fetched. It encodes
+them under `links`, adding `ids` and `inserted` only while there are unsaved
+changes, so a local copy keeps its orders and its changes.
 
 ### Encrypted values
 

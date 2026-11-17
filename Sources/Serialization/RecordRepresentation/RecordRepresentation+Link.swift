@@ -1,7 +1,7 @@
 import Foundation
 
 extension RecordRepresentation {
-    /// One link in a relationship, stored as a record of its own.
+    /// One link of a ``Relationship``, stored as a record of its own.
     ///
     /// It is an ordinary model, `Identifiable` by a `UUID` and `Codable` by
     /// synthesis, except that its ``id`` is derived rather than stored. Its
@@ -22,7 +22,7 @@ extension RecordRepresentation {
     ///
     /// One query, `keyPath == "Note.tags" AND references CONTAINS` a record,
     /// finds every link to it from either side.
-    public struct Relationship: Codable, Hashable, Sendable, Identifiable {
+    public struct Link: Codable, Hashable, Sendable, Identifiable {
         /// The declaring type and property, as in `"Note.tags"`.
         public private(set) var keyPath: String
         /// The declaring record's id, then the target's id.
@@ -52,16 +52,21 @@ extension RecordRepresentation {
         public var id: UUID {
             UUID(stableHashOf: ([keyPath] + references.map(\.uuidString)).joined(separator: "|"))
         }
+
+        /// The id at the other end of the link from `source`.
+        package func target(from source: UUID) -> UUID {
+            references[0] == source ? references[1] : references[0]
+        }
     }
 }
 
 /// A list of ids encoded as ``RecordRepresentation/Reference`` values, like
 /// ``References`` but with no target type, for
-/// ``RecordRepresentation/Relationship``, whose two references can point at
+/// ``RecordRepresentation/Link``, whose two references can point at
 /// records of different types.
 ///
 /// Only this package can create one. Clients see it only as the wrapper
-/// behind `Relationship.references`.
+/// behind `Link.references`.
 @propertyWrapper
 public struct Related: Codable, Hashable, Sendable {
     public var wrappedValue: [UUID]
