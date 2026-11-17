@@ -220,28 +220,18 @@ has the action `.none` until you set `$folder.action`.
 
 ### Reference lists
 
-`@References` holds a short list of references stored on the record itself.
-It works like `@Reference`, with one action for every element.
-
-```swift
-@References(to: Tag.self) var tags: [UUID] = []
-```
-
-An empty list is left out, and a missing key decodes as an empty list.
-
-### Relationships
-
-`@Relationship` holds a to-many relationship stored as link records instead
-of a field, so it has no size limit. Each link is a
-`RecordRepresentation.Link` named by the declaring side, as in
+`@References` holds a to-many relationship. Each reference is stored as its
+own `Relationship` record instead of in a field on the record, so the list
+has no size limit, edits from two devices merge, and the target never has to
+declare an inverse. A `Relationship` is named by the declaring side, as in
 `"Note.tags"`, with the declaring record's id and then the target's. Its id
 is a stable hash of those three values, so the same link always maps to the
-same record, and the target never has to declare an inverse.
+same record.
 
 ```swift
 struct Note: Codable, Identifiable {
     var id: UUID
-    @Relationship(to: Tag.self) var tags: [UUID] = []
+    @References(to: Tag.self) var tags: [UUID] = []
 }
 
 note.$tags.append(newTag)               // a new tag, created with the note
@@ -251,6 +241,10 @@ note.$tags.added                        // [newTag.id, existing.id]
 note.$tags.removed                      // ids unlinked since the last save
 note.$tags.links                        // the stored links, sorted by order
 ```
+
+Use `@Reference` for one target and `@References` for many. One target is a
+field, so it travels with the record and two devices settle on one value.
+Many targets are links, so they merge.
 
 The wrapper tracks changes since the last save, so the next save can create
 the inserted tags and add or delete their links. Each link stores an integer

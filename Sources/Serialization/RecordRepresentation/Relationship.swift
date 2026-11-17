@@ -1,192 +1,89 @@
 import Foundation
 
-/// An ordered to-many relationship stored as ``RecordRepresentation/Link``
-/// records instead of a field, so it has no size limit and no limit on
-/// cascading deletes.
+/// One link of a ``References`` property, stored as a record of its own.
 ///
-/// ```swift
-/// struct Note: Codable, Identifiable {
-///     var id: UUID
-///     @Relationship(to: Tag.self) var tags: [UUID] = []
-/// }
+/// It is an ordinary model, `Identifiable` by a `UUID` and `Codable` by
+/// synthesis, except that its ``id`` is derived rather than stored. Its
+/// `references` encode as a reference list, so CloudKit stores them as
+/// references you can follow in the Dashboard.
 ///
-/// note.$tags.append(newTag)       // a new tag, saved with the note
-/// note.tags.append(existing.id)   // an existing tag, linked by id
-/// note.tags.removeAll { $0 == old.id }
-/// note.$tags.links                // the stored links, by order
-/// ```
+/// Links are created by this package, not by clients, so the initializer
+/// has `package` access: the CloudKit target can create links, and code
+/// outside the package can only read and pass them.
 ///
-/// The property reads and writes the targets' ids in order. The wrapper
-/// holds the links as they were last saved or fetched, and tracks what
-/// changed since, like a `ModelContext`:
+/// A link is named by the declaring side alone. Linking a note to a tag
+/// through `Note.tags` gives `keyPath == "Note.tags"` and
+/// `references == [note.id, tag.id]`, declaring record first. The target
+/// never needs to declare an inverse, and an inverse it does declare
+/// (`inverse: \Note.tags`) names the same key path, so both sides build
+/// the same link. Adding or removing an inverse never changes a stored
+/// link.
 ///
-/// - ``inserted`` holds new targets appended through ``append(_:)``, so one
-///   save can create them along with their links.
-/// - ``added`` and ``removed`` are the ids linked and unlinked.
+/// One query, `keyPath == "Note.tags" AND references CONTAINS` a record,
+/// finds every link to it from either side.
+public struct Relationship: Codable, Hashable, Sendable, Identifiable {
+    /// The declaring type and property, as in `"Note.tags"`.
+    public private(set) var keyPath: String
+    /// The declaring record's id, then the target's id.
+    @Related public private(set) var references: [UUID]
+    /// The target's position in the declaring record's list. Orders only
+    /// need to increase, so deleting a link never renumbers the others.
+    public private(set) var order: Int
+
+    /// A link from `source` to `target` through `keyPath`, at `order` in
+    /// the source's list.
+    ///
+    /// A symmetric relationship is its own inverse, like `Person.friends`.
+    /// It has no declaring side, so its ids are sorted and the link is the
+    /// same whichever record creates it.
+    package init(keyPath: String, from source: UUID, to target: UUID, order: Int = 0, symmetric: Bool = false) {
+        self.keyPath = keyPath
+        self.order = order
+        let ids = [source, target]
+        _references = Related(symmetric ? ids.sorted { $0.uuidString < $1.uuidString } : ids)
+    }
+
+    /// The link's record name: a stable hash of the key path and both ids,
+    /// so the same link always maps to the same record, and moving it
+    /// updates that record in place. It is derived, so it is never stored,
+    /// never disagrees with the link, and lets a removal delete the link
+    /// without fetching it.
+    public var id: UUID {
+        UUID(stableHashOf: ([keyPath] + references.map(\.uuidString)).joined(separator: "|"))
+    }
+
+    /// The id at the other end of the link from `source`.
+    package func target(from source: UUID) -> UUID {
+        references[0] == source ? references[1] : references[0]
+    }
+}
+
+/// A list of ids encoded as ``RecordRepresentation/Reference`` values, with
+/// no target type, for ``Relationship``, whose two references can point at
+/// records of different types.
 ///
-/// Each link stores an integer order. A link keeps its saved order for as
-/// long as the orders still increase, so a delete writes nothing but the
-/// deletion, an append writes one link, and a move writes the moved link and
-/// any after it that no longer sort.
-///
-/// A wrapper cannot see the model that holds it, so the encoder supplies the
-/// declaring key path and record when it builds the links with
-/// ``changes(keyPath:from:)``.
-///
-/// Inserted targets are new records. Saving one that already exists on the
-/// server is a conflict that the server copy wins, so a stale copy never
-/// overwrites an edit. Edit an existing target by saving it directly.
+/// Only this package can create one. Clients see it only as the wrapper
+/// behind `Relationship.references`.
 @propertyWrapper
-public struct Relationship<Target: Identifiable & Codable> where Target.ID == UUID {
-    public var wrappedValue: [UUID] {
-        didSet { inserted.removeAll { !wrappedValue.contains($0.id) } }
-    }
+public struct Related: Codable, Hashable, Sendable {
+    public var wrappedValue: [UUID]
 
-    /// New targets to create with this relationship's next save.
-    public private(set) var inserted: [Target] = []
-
-    /// The links stored at the last save or fetch, by target id.
-    private var saved: [UUID: RecordRepresentation.Link] = [:]
-
-    public init(wrappedValue: [UUID] = [], to target: Target.Type) {
-        self.wrappedValue = wrappedValue
-    }
-
-    /// The wrapper itself, so that `$property.links` and
-    /// `$property.append(_:)` are available.
-    public var projectedValue: Relationship<Target> {
-        get { self }
-        set { self = newValue }
-    }
-
-    /// The links stored at the last save or fetch, sorted by order.
-    public var links: [RecordRepresentation.Link] {
-        saved.values.sorted { $0.order < $1.order }
-    }
-
-    /// The ids linked since the last save.
-    public var added: Set<UUID> {
-        Set(wrappedValue.filter { saved[$0] == nil })
-    }
-
-    /// The ids unlinked since the last save.
-    public var removed: Set<UUID> {
-        Set(saved.keys).subtracting(wrappedValue)
-    }
-
-    /// Links a new target and holds it to be created with the next save.
-    /// Appending a target again replaces the held copy.
-    public mutating func append(_ target: Target) {
-        if !wrappedValue.contains(target.id) {
-            wrappedValue.append(target.id)
-        }
-        inserted.removeAll { $0.id == target.id }
-        inserted.append(target)
-    }
-}
-
-extension Relationship {
-    /// A fetched relationship, from the links that the record `source`
-    /// declares, in any order.
-    package init(_ links: [RecordRepresentation.Link], from source: UUID) {
-        self.init(to: Target.self)
-        saved = Dictionary(links.map { ($0.target(from: source), $0) }, uniquingKeysWith: { first, _ in first })
-        wrappedValue = savedIDs
-    }
-
-    /// The links to save and to delete, for the record `source` that
-    /// declares this relationship at `keyPath`, as in `"Note.tags"`. Links
-    /// are saved when they are new or their order changed, and the links to
-    /// delete are the saved ones.
-    package func changes(keyPath: String, from source: UUID) -> (save: [RecordRepresentation.Link], delete: [RecordRepresentation.Link]) {
-        let orders = self.orders
-        let save = wrappedValue.filter { saved[$0]?.order != orders[$0] }.map {
-            RecordRepresentation.Link(keyPath: keyPath, from: source, to: $0, order: orders[$0, default: 0])
-        }
-        let delete = removed.compactMap { saved[$0] }.sorted { $0.order < $1.order }
-        return (save, delete)
-    }
-
-    /// Records the links just saved and drops the inserted targets, after a
-    /// save of ``changes(keyPath:from:)`` succeeds.
-    package mutating func commit(keyPath: String, from source: UUID) {
-        let save = changes(keyPath: keyPath, from: source).save
-        saved = saved.filter { wrappedValue.contains($0.key) }
-        for link in save {
-            saved[link.target(from: source)] = link
-        }
-        inserted = []
-    }
-
-    /// The saved target ids, by order.
-    private var savedIDs: [UUID] {
-        saved.sorted { $0.value.order < $1.value.order }.map(\.key)
-    }
-
-    /// The order to save each id with: its saved order while the orders
-    /// still increase, or else one more than the previous id's.
-    private var orders: [UUID: Int] {
-        var orders: [UUID: Int] = [:]
-        var previous = -1
-        for id in wrappedValue {
-            let order = saved[id].flatMap { $0.order > previous ? $0.order : nil } ?? previous + 1
-            orders[id] = order
-            previous = order
-        }
-        return orders
-    }
-}
-
-extension Relationship: Equatable where Target: Equatable {}
-extension Relationship: Hashable where Target: Hashable {}
-extension Relationship: Sendable where Target: Sendable {}
-
-/// Encodes the saved links by target id under `links`, so a local copy keeps
-/// them. It adds `ids` when they differ from the saved links' order and
-/// `inserted` while there are new targets. A relationship that was never
-/// saved encodes only its `ids`.
-extension Relationship: Codable {
-    private enum CodingKeys: String, CodingKey {
-        case ids, links, inserted
+    package init(_ ids: [UUID]) {
+        wrappedValue = ids
     }
 
     public init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.init(to: Target.self)
-        let links = try container.decodeIfPresent([String: RecordRepresentation.Link].self, forKey: .links) ?? [:]
-        saved = try Dictionary(uniqueKeysWithValues: links.map { entry in
-            guard let id = UUID(uuidString: entry.key) else {
-                throw DecodingError.dataCorruptedError(forKey: .links, in: container, debugDescription: "\"\(entry.key)\" is not a UUID.")
+        let container = try decoder.singleValueContainer()
+        wrappedValue = try container.decode([RecordRepresentation.Reference].self).map { reference in
+            guard let id = UUID(uuidString: reference.recordName) else {
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Record name \"\(reference.recordName)\" is not a UUID.")
             }
-            return (id, entry.value)
-        })
-        wrappedValue = try container.decodeIfPresent([UUID].self, forKey: .ids) ?? savedIDs
-        inserted = try container.decodeIfPresent([Target].self, forKey: .inserted) ?? []
+            return id
+        }
     }
 
     public func encode(to encoder: any Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        if wrappedValue != savedIDs {
-            try container.encode(wrappedValue, forKey: .ids)
-        }
-        if !saved.isEmpty {
-            try container.encode(Dictionary(uniqueKeysWithValues: saved.map { ($0.key.uuidString, $0.value) }), forKey: .links)
-        }
-        if !inserted.isEmpty {
-            try container.encode(inserted, forKey: .inserted)
-        }
-    }
-}
-
-extension KeyedDecodingContainer {
-    public func decode<Target>(_ type: Relationship<Target>.Type, forKey key: Key) throws -> Relationship<Target> {
-        try decodeIfPresent(type, forKey: key) ?? Relationship(to: Target.self)
-    }
-}
-
-extension KeyedEncodingContainer {
-    public mutating func encode<Target>(_ value: Relationship<Target>, forKey key: Key) throws {
-        guard !value.wrappedValue.isEmpty || !value.removed.isEmpty else { return }
-        try encodeIfPresent(Optional(value), forKey: key)
+        var container = encoder.singleValueContainer()
+        try container.encode(wrappedValue.map { RecordRepresentation.Reference(recordName: $0.uuidString) })
     }
 }
