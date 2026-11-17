@@ -1,3 +1,5 @@
+import Foundation
+
 /// Encodes and decodes through any `Encoder` and `Decoder`, so a `Codable`
 /// type can hold a free-form `JSONRepresentation` property.
 ///
@@ -6,8 +8,10 @@
 ///   `1e2` decodes as `100`.
 /// - `JSONDecoder` does not promise key order, so decoded objects may be
 ///   reordered.
-/// - A number is encoded as `Int64`, then `UInt64`, then `Double`, so a
-///   decimal with more precision than `Double` is rounded.
+/// - A number is encoded as `Int64`, then `UInt64`, then `Double`, or as
+///   `Decimal` when `Double` would round it. `JSONEncoder` then writes the
+///   same text it writes for the original value, so with `.sortedKeys`,
+///   `encode(JSONRepresentation(value))` equals `encode(value)`.
 extension JSONRepresentation: Codable {
     public init(from decoder: any Decoder) throws {
         if let container = try? decoder.container(keyedBy: Path.Segment.self) {
@@ -55,6 +59,8 @@ extension JSONRepresentation: Codable {
                 try container.encode(value)
             } else if let value = uint64Value {
                 try container.encode(value)
+            } else if let value = doubleValue, let decimal = exactDecimal(unlessEqualTo: value) {
+                try container.encode(decimal)
             } else if let value = doubleValue {
                 try container.encode(value)
             } else {
@@ -71,5 +77,14 @@ extension JSONRepresentation: Codable {
                 try container.encode(value, forKey: .key(key))
             }
         }
+    }
+}
+
+private extension JSONRepresentation {
+    /// This number as a `Decimal`, or `nil` when `double` already holds it
+    /// exactly or `Decimal` cannot hold it either.
+    func exactDecimal(unlessEqualTo double: Double) -> Decimal? {
+        guard let text = numberText, let decimal = Decimal(string: text), !decimal.isNaN, decimal != Decimal(string: String(double)) else { return nil }
+        return decimal
     }
 }
