@@ -1,8 +1,9 @@
 # swift-serialization
 
 Swift-first JSON for `Codable` types: a value tree that matches `JSONEncoder`,
-and schemas that describe a type and tell you whether two versions of it can
-read each other's data.
+schemas that describe a type and tell you whether two versions of it can read
+each other's data, and differences between two values that can be applied,
+inverted and stored.
 
 ## Installation
 
@@ -52,7 +53,28 @@ Values can also be written as literals:
 let value: JSONRepresentation = ["name": "Ada", "scores": [1, 2.5], "nickname": nil]
 ```
 
-`JSONRepresentation` is `Codable`, `Hashable` and `Sendable`.
+`JSONRepresentation` is `Codable`, `Hashable` and `Sendable`. Encoding a
+representation with `JSONEncoder` writes the same bytes as encoding the
+original value, as long as both use `.sortedKeys`. Without it, `JSONEncoder`
+does not promise a key order.
+
+### Paths
+
+A `JSONRepresentation.Path` locates a value inside another. It is a
+collection of `.key` and `.index` segments, written as array literals and
+described in JSONPath notation.
+
+```swift
+var json: JSONRepresentation = ["rooms": [["name": "A"], ["name": "B"]]]
+let path: JSONRepresentation.Path = ["rooms", 1, "name"]
+print(path)                      // $.rooms[1].name
+json[path]                       // Optional(.string("B"))
+json[path] = "C"                 // replaces the value at the path
+JSONRepresentation.Path("$.rooms[0].name") // parses the description back
+```
+
+Each segment is a `CodingKey`, so a `DecodingError`'s `codingPath` converts
+to a path that points at the failing value.
 
 ## JSONSchema
 
@@ -83,6 +105,13 @@ current.isSubset(of: saved)      // V1 can read everything V2 writes
 current.isCompatible(with: saved) // both directions
 ```
 
+`contains(_:)` asks the same question of a single value: whether the type
+behind the schema can decode it.
+
+```swift
+current.contains(storedJSON)     // V2 can decode this stored value
+```
+
 ### Identity
 
 `id` is a stable `UUID` computed from the schema alone. It is the same on every
@@ -92,6 +121,68 @@ checks above rather than comparing ids when versions differ.
 
 A schema stored with `Codable` reads back to an equal schema with the same
 `id`.
+
+## JSONDifference
+
+`difference(from:)` lists the changes that turn one value into another.
+Changes are deep, so an edit inside a nested object is reported at its own
+path, and numbers compare by value, so `1` and `1.0` are not a change.
+
+```swift
+let old: JSONRepresentation = ["keep": 1, "drop": "x", "change": "A"]
+let new: JSONRepresentation = ["keep": 1, "change": "B", "add": true]
+
+let difference = new.difference(from: old)
+print(difference)
+// - $.drop: "x"
+// ~ $.change: "A" → "B"
+// + $.add: true
+
+old.applying(difference) == new             // true
+new.applying(difference.inverted()) == old  // true
+```
+
+A `JSONDifference` is a collection of `Change` values, removals first, each
+either `.remove` or `.insert` with a `path`, an `element` and an optional
+`associatedWith` segment. A linked removal and insertion form a replacement
+(`~`) when their elements differ, or a move (`>`) when they are the same.
+Moves are inferred, so a reordered array or a renamed key is reported as
+moves rather than as removals and insertions:
+
+```text
+> $[2] → $[0]: "z"
+> $.nickname → $.alias: {"first":"Ada"}
+```
+
+`applying(_:)` returns `nil` when the difference does not fit, such as when a
+removed value is not where the difference expects it.
+
+### Differences a type can see
+
+`difference(from:as:)` compares two values the way a `Decodable` type reads
+them. Keys the type does not declare are ignored, and an optional property
+that is missing or `null` counts as unchanged. This suits stored data, where
+the question is what changed for the current version of the type.
+
+```swift
+let stored: JSONRepresentation = ["theme": "dark", "fontSize": 14, "tags": ["a"], "legacy": true]
+let current = try JSONRepresentation(Settings(theme: "light", fontSize: 14, tags: ["a"]))
+
+print(current.difference(from: stored))
+// ~ $.theme: "dark" → "light"
+// - $.legacy: true
+
+print(try current.difference(from: stored, as: Settings.self))
+// ~ $.theme: "dark" → "light"
+```
+
+Applying it to `stored` gives a value that `Settings` decodes the same as
+`current`. It throws when `JSONSchema(for:)` cannot describe the type.
+
+### Storing a difference
+
+`JSONDifference` is `Codable`, `Hashable` and `Sendable`. It encodes as an
+array of changes, and its `description` is the readable form shown above.
 
 ## Requirements
 
