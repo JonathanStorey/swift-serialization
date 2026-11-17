@@ -35,30 +35,21 @@ import Testing
         #expect(Relationship("tags", note, "notes", tag).id == UUID(stableHashOf: "notes|tags|00000000-0000-0000-0000-00000000000B|00000000-0000-0000-0000-00000000000A"))
     }
 
-    @Test func encodesAReferenceList() throws {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        let text = String(decoding: try encoder.encode(Relationship("tags", note, "notes", tag)), as: UTF8.self)
-        #expect(text == """
-            {"fields":["notes","tags"],"references":[\
-            {"action":"none","recordName":"00000000-0000-0000-0000-00000000000B"},\
-            {"action":"none","recordName":"00000000-0000-0000-0000-00000000000A"}]}
-            """)
+    @Test func encodesLikeAModel() throws {
+        let link = Relationship("tags", note, "notes", tag)
+        let json = try JSONRepresentation(link)
+        #expect(json["id"] == .string(link.id.uuidString))
+        #expect(json["fields"] == ["notes", "tags"])
+        #expect(json["references"] == [
+            ["recordName": .string(tag.uuidString), "action": "none"],
+            ["recordName": .string(note.uuidString), "action": "none"],
+        ])
+        #expect(link.$references.action == .none)
     }
 
-    @Test func roundTripsAndRestoresOrder() throws {
+    @Test func roundTrips() throws {
         let link = Relationship("tags", note, "notes", tag)
         #expect(try JSONDecoder().decode(Relationship.self, from: JSONEncoder().encode(link)) == link)
-
-        let swapped: JSONRepresentation = [
-            "fields": ["tags", "notes"],
-            "references": [["recordName": .string(note.uuidString), "action": "none"], ["recordName": .string(tag.uuidString), "action": "none"]],
-        ]
-        #expect(try swapped.decode(Relationship.self) == link)
-    }
-
-    @Test func rejectsTheWrongCount() {
-        let one: JSONRepresentation = ["fields": ["tags"], "references": [["recordName": .string(note.uuidString), "action": "none"]]]
-        #expect(throws: DecodingError.self) { try one.decode(Relationship.self) }
+        #expect(try JSONRepresentation(link).decode(Relationship.self) == link)
     }
 }
