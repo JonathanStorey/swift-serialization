@@ -48,6 +48,7 @@ private struct Note: Codable, Hashable {
     @Test func untypedReferencesUseUUIDAsTheTarget() throws {
         struct Link: Codable, Hashable {
             @References<UUID>() var references: [UUID]
+            init() {}
         }
         var link = Link()
         link.references = [a, b]
