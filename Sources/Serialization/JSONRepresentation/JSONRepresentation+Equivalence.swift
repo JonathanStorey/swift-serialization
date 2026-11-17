@@ -20,6 +20,33 @@ extension JSONRepresentation {
     }
 }
 
+extension JSONRepresentation {
+    /// Whether `schema`'s type would decode both values the same: keys it
+    /// does not declare are ignored, and a missing optional property equals
+    /// `null`. A schema that does not fit the values is ignored, and `nil`
+    /// compares everything.
+    func isEquivalent(to other: JSONRepresentation, under schema: JSONSchema?) -> Bool {
+        switch (schema?.flattened, self, other) {
+        case (nil, _, _):
+            return isEquivalent(to: other)
+        case (.optional(let wrapped)?, _, _):
+            return self == .null || other == .null ? self == other : isEquivalent(to: other, under: wrapped)
+        case let (.array(items)?, .array(lhs), .array(rhs)):
+            return lhs.count == rhs.count && zip(lhs, rhs).allSatisfy { $0.isEquivalent(to: $1, under: items) }
+        case let (.object(properties)?, .object, .object):
+            return properties.allSatisfy { property in
+                let schema = property.value
+                let lhs = self[property.key], rhs = other[property.key]
+                if schema.isOptional { return (lhs ?? .null).isEquivalent(to: rhs ?? .null, under: schema) }
+                guard let lhs, let rhs else { return lhs == nil && rhs == nil }
+                return lhs.isEquivalent(to: rhs, under: schema)
+            }
+        default:
+            return isEquivalent(to: other)
+        }
+    }
+}
+
 private extension String {
     /// The exact value of valid JSON number text, or `nil`. `Decimal` holds
     /// 38 significant digits, so longer numbers compare after rounding.
