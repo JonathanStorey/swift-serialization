@@ -45,6 +45,15 @@ private struct Note: Codable, Hashable {
         #expect(try JSONDecoder().decode(Note.self, from: Data(text.utf8)).$tags.action == .none)
     }
 
+    @Test func untypedReferencesUseUUIDAsTheTarget() throws {
+        struct Link: Codable, Hashable {
+            @References<UUID> var references: [UUID] = []
+        }
+        let link = Link(references: [a, b])
+        #expect(link.$references.action == .none)
+        #expect(try JSONDecoder().decode(Link.self, from: JSONEncoder().encode(link)) == link)
+    }
+
     @Test func rejectsARecordNameThatIsNotAUUID() {
         let text = #"{"tags":[{"recordName":"x","action":"none"}]}"#
         #expect(throws: DecodingError.self) { try JSONDecoder().decode(Note.self, from: Data(text.utf8)) }

@@ -16,13 +16,30 @@ import Foundation
 /// the action of its first element, and an empty list decodes with `.none`.
 /// An empty list is left out of a keyed container, and a missing key decodes
 /// as an empty list.
+///
+/// When the target type is not known, as when a list points at records of
+/// different types, use `UUID` as the target:
+///
+/// ```swift
+/// @References<UUID> var references: [UUID] = []
+/// ```
 @propertyWrapper
-public struct References<Target: Identifiable>: Hashable, Sendable where Target.ID == UUID {
+public struct References<Target>: Hashable, Sendable {
     public var wrappedValue: [UUID]
     public var action: RecordRepresentation.Reference.Action
 
-    public init(wrappedValue: [UUID] = [], to target: Target.Type, action: RecordRepresentation.Reference.Action = .none) {
-        self.wrappedValue = wrappedValue
+    /// References to records of type `Target`.
+    public init(wrappedValue: [UUID] = [], to target: Target.Type, action: RecordRepresentation.Reference.Action = .none) where Target: Identifiable, Target.ID == UUID {
+        self.init(ids: wrappedValue, action: action)
+    }
+
+    /// References to records of any type.
+    public init(wrappedValue: [UUID] = [], action: RecordRepresentation.Reference.Action = .none) where Target == UUID {
+        self.init(ids: wrappedValue, action: action)
+    }
+
+    init(ids: [UUID], action: RecordRepresentation.Reference.Action) {
+        self.wrappedValue = ids
         self.action = action
     }
 
@@ -43,7 +60,7 @@ extension References: Codable {
             }
             return id
         }
-        self.init(wrappedValue: ids, to: Target.self, action: references.first?.action ?? .none)
+        self.init(ids: ids, action: references.first?.action ?? .none)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -54,7 +71,7 @@ extension References: Codable {
 
 extension KeyedDecodingContainer {
     public func decode<Target>(_ type: References<Target>.Type, forKey key: Key) throws -> References<Target> {
-        try decodeIfPresent(type, forKey: key) ?? References(to: Target.self)
+        try decodeIfPresent(type, forKey: key) ?? References(ids: [], action: .none)
     }
 }
 

@@ -1,17 +1,6 @@
 import Foundation
 
 extension RecordRepresentation {
-    /// Stands in for any record type when a reference's target type is not
-    /// known, as in ``Relationship``, whose two references point at
-    /// different types.
-    public struct AnyRecord: Identifiable, Sendable {
-        public var id: UUID
-
-        public init(id: UUID) {
-            self.id = id
-        }
-    }
-
     /// One link in a many-to-many relationship, stored as a record of its own.
     ///
     /// It is an ordinary model: `Identifiable` by a `UUID`, `Codable` by
@@ -33,7 +22,7 @@ extension RecordRepresentation {
         /// The two fields, paired by position with ``references``.
         public private(set) var fields: [String]
         /// The two linked records' ids, paired by position with ``fields``.
-        @References(to: AnyRecord.self) public private(set) var references: [UUID] = []
+        @References<UUID> public private(set) var references: [UUID] = []
 
         /// A link between `id` through `field` and `otherID` through
         /// `otherField`, given in either order.
