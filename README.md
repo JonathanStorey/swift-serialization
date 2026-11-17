@@ -184,6 +184,37 @@ Applying it to `stored` gives a value that `Settings` decodes the same as
 `JSONDifference` is `Codable`, `Hashable` and `Sendable`. It encodes as an
 array of changes, and its `description` is the readable form shown above.
 
+## Record references
+
+`@Reference` stores a link to another `Identifiable` model as that model's
+`id`, ready for CloudKit's `CKRecord.Reference`. The generic target is
+inferred from the type you pass.
+
+```swift
+struct Folder: Codable, Identifiable {
+    var id: UUID
+}
+
+struct Note: Codable, Identifiable {
+    var id: UUID
+    @Reference(to: Folder.self, action: .deleteSelf) var folder: Folder.ID? = nil
+}
+
+var note = Note(id: UUID(), folder: folder.id)
+note.folder                      // Optional(folder.id)
+note.$folder.action              // .deleteSelf
+```
+
+The wrapper encodes a `RecordRepresentation.Reference`, the target's record
+name with its action, so `JSONEncoder` writes
+`{"folder":{"action":"deleteSelf","recordName":"..."},"id":"..."}`. A `nil`
+reference is left out, and a missing key decodes as `nil`. The record name is
+the encoded `id` as text, so `UUID`, `String` and integer ids all work.
+
+A decoded reference keeps the action it was saved with. Swift does not pass
+the attribute's arguments to `init(from:)`, so a reference decoded as `nil`
+has the action `.none` until you set `$folder.action`.
+
 ## Requirements
 
 - Swift 6.0 or later (Xcode 16+)
