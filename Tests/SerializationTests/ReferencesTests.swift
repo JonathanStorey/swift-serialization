@@ -4,13 +4,24 @@ import Testing
 
 private struct Tag: Codable, Identifiable {
     var id: UUID
+    var notes: [UUID] = []
 }
 
 private struct Note: Codable, Hashable {
-    @References(to: Tag.self) var tags: [UUID] = []
+    @References(to: \Tag.notes) var tags: [UUID] = []
 
     /// The wrapper's storage is private, so only this file can read it.
-    var tagsInverse: String? { _tags.inverse }
+    var tagsStorage: References<Tag>.Storage? { _tags.storage }
+}
+
+private struct Attachment: Codable, Identifiable {
+    var id: UUID
+}
+
+private struct Folder: Codable, Hashable {
+    @References(Attachment.self) var attachments: [UUID] = []
+
+    var attachmentsStorage: References<Attachment>.Storage? { _attachments.storage }
 }
 
 private struct Post: Codable, Identifiable {
@@ -20,11 +31,11 @@ private struct Post: Codable, Identifiable {
 private struct Label: Codable, Hashable {
     @References(from: Post.self, key: "labels") var posts: [UUID] = []
 
-    var postsInverse: String? { _posts.inverse }
+    var postsStorage: References<Post>.Storage? { _posts.storage }
 }
 
 private struct Match: Codable, Hashable {
-    @References(to: Tag.self, action: .deleteSelf) var tags: [UUID] = []
+    @References(Tag.self, action: .deleteSelf) var tags: [UUID] = []
 
     var tagsAction: RecordRepresentation.Reference.Action { _tags.action }
 }
@@ -59,9 +70,22 @@ private struct Match: Codable, Hashable {
         #expect(try JSONDecoder().decode(Match.self, from: Data("{}".utf8)).tagsAction == .none)
     }
 
-    @Test func inverseNamesTheDeclaringKeyPath() {
-        #expect(Label().postsInverse == "Post.labels")
-        #expect(Note().tagsInverse == nil)
+    @Test func initializerPicksTheStorage() {
+        #expect(Folder().attachmentsStorage == .field)
+        #expect(Note().tagsStorage == .links)
+        #expect(Label().postsStorage == .inverse("Post.labels"))
+    }
+
+    @Test func decodedListHasNoStorageAndStillEqualsTheOriginal() throws {
+        let model = Note(tags: [a, b])
+        let decoded = try JSONDecoder().decode(Note.self, from: JSONEncoder().encode(model))
+        #expect(decoded.tagsStorage == nil)
+        #expect(decoded == model)
+        #expect(try JSONDecoder().decode(Note.self, from: Data("{}".utf8)).tagsStorage == nil)
+    }
+
+    @Test func fieldAndLinksEncodeAlike() throws {
+        #expect(try json(Folder(attachments: [a])) == #"{"attachments":[{"action":"none","recordName":"00000000-0000-0000-0000-0000000000A1"}]}"#)
     }
 
     @Test func inverseSortsByInverseOrder() {

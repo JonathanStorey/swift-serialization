@@ -1,53 +1,80 @@
 import Foundation
 
-/// A read-only to-many relationship, stored as ``Relationship`` records
-/// instead of a field on the record, so it has no size limit and edits from
-/// two devices merge.
+/// A read-only to-many relationship, holding the targets' ids in order.
+///
+/// The initializer picks how the list is stored, and the property reads the
+/// same either way:
 ///
 /// ```swift
 /// struct Note: Codable, Identifiable {
 ///     var id: UUID
-///     @References(to: Tag.self) var tags: [UUID] = []
+///     @References(Attachment.self) var attachments: [UUID] = []   // a field on the record
+///     @References(to: \Tag.notes) var tags: [UUID] = []          // Relationship records
+/// }
+///
+/// struct Tag: Codable, Identifiable {
+///     var id: UUID
+///     @References(from: Note.self, key: "tags") var notes: [UUID] = [] // the inverse
 /// }
 /// ```
 ///
-/// The property holds the targets' ids in order. It is set when the model
-/// is created or decoded and cannot be assigned afterwards. The wrapper
-/// stores only the ids and its action, and encodes each id as a
+/// A target type alone stores the list as one reference list field, like
+/// `CKRecord`'s own. It travels with the record, and two devices settle on
+/// one list.
+///
+/// A key path to the target's inverse stores each reference as its own
+/// ``Relationship`` record, so the list has no size limit and edits from two
+/// devices merge. The key path is a signal, not a name: the link is named
+/// by the declaring side, as in `"Note.tags"`, from the coding key it
+/// encodes. The inverse names the declaring type and that coding key, and
+/// reads the same links from the other end.
+///
+/// The property is set when the model is created or decoded and cannot be
+/// assigned afterwards. Either way it encodes each id as a
 /// ``RecordRepresentation/Reference`` carrying the action. An empty list is
 /// left out of a keyed container, and a missing key decodes as an empty
 /// list.
 ///
-/// An inverse reads the same links from the other end. It names the
-/// declaring type and the coding key that side encodes, so its links are
-/// the declaring side's links:
-///
-/// ```swift
-/// struct Tag: Codable, Identifiable {
-///     var id: UUID
-///     @References(from: Note.self, key: "tags") var notes: [UUID] = []
-/// }
-/// ```
-///
 /// The action follows `CKRecord.Reference`: with `.deleteSelf`, the record
-/// holding the property deletes itself when any target is deleted. A
-/// decoded list takes the action of its first element, and an empty list
-/// decodes with `.none`, because Swift does not pass the attribute's
-/// arguments to `init(from:)`.
+/// holding the property deletes itself when any target is deleted. Swift
+/// does not pass the attribute's arguments to `init(from:)`, so a decoded
+/// list takes the action of its first element, an empty list decodes with
+/// `.none`, and a decoded list does not know its storage until a schema
+/// supplies it. Equality and hashing compare the ids and the action only.
 @propertyWrapper
-public struct References<Target: Identifiable>: Hashable, Sendable where Target.ID == UUID {
+public struct References<Target: Identifiable>: Sendable where Target.ID == UUID {
     public let wrappedValue: [UUID]
     public let action: RecordRepresentation.Reference.Action
 
-    /// The declaring key path for an inverse, as in `"Note.tags"`, or `nil`
-    /// on the declaring side. It is not encoded, so a decoded wrapper has
-    /// `nil` until the schema supplies it.
-    package let inverse: String?
+    /// How the list is stored, or `nil` when the wrapper was decoded.
+    package let storage: Storage?
 
-    public init(wrappedValue: [UUID] = [], to target: Target.Type, action: RecordRepresentation.Reference.Action = .none) {
+    package enum Storage: Hashable, Sendable {
+        /// One reference list field on the record.
+        case field
+        /// ``Relationship`` records named by this side.
+        case links
+        /// ``Relationship`` records named by the declaring side, as in
+        /// `"Note.tags"`.
+        case inverse(String)
+    }
+
+    fileprivate init(wrappedValue: [UUID], action: RecordRepresentation.Reference.Action, storage: Storage?) {
         self.wrappedValue = wrappedValue
         self.action = action
-        inverse = nil
+        self.storage = storage
+    }
+
+    /// A list stored as one reference list field on the record.
+    public init(wrappedValue: [UUID] = [], _ target: Target.Type, action: RecordRepresentation.Reference.Action = .none) {
+        self.init(wrappedValue: wrappedValue, action: action, storage: .field)
+    }
+
+    /// A list stored as ``Relationship`` records, declared on this side.
+    /// `inverse` is the target's property that reads the same links back,
+    /// and its root is the target type.
+    public init(wrappedValue: [UUID] = [], to inverse: KeyPath<Target, [UUID]>, action: RecordRepresentation.Reference.Action = .none) {
+        self.init(wrappedValue: wrappedValue, action: action, storage: .links)
     }
 
     /// The inverse of the relationship that `declaringType` declares under
@@ -56,9 +83,18 @@ public struct References<Target: Identifiable>: Hashable, Sendable where Target.
     /// The key is the coding key the declaring side encodes, which is the
     /// property name unless its `CodingKeys` rename it.
     public init(wrappedValue: [UUID] = [], from declaringType: Target.Type, key: String, action: RecordRepresentation.Reference.Action = .none) {
-        self.wrappedValue = wrappedValue
-        self.action = action
-        inverse = "\(Target.self).\(key)"
+        self.init(wrappedValue: wrappedValue, action: action, storage: .inverse("\(Target.self).\(key)"))
+    }
+}
+
+extension References: Hashable {
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        (lhs.wrappedValue, lhs.action) == (rhs.wrappedValue, rhs.action)
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(wrappedValue)
+        hasher.combine(action)
     }
 }
 
@@ -69,7 +105,7 @@ extension References {
     package init(_ links: [Relationship], from source: UUID, action: RecordRepresentation.Reference.Action = .none) {
         let order = { (link: Relationship) in (link.references[0] == source ? link.order : link.inverseOrder) ?? .max }
         let sorted = links.sorted { (order($0), $0.id.uuidString) < (order($1), $1.id.uuidString) }
-        self.init(wrappedValue: sorted.map { $0.target(from: source) }, to: Target.self, action: action)
+        self.init(wrappedValue: sorted.map { $0.target(from: source) }, action: action, storage: nil)
     }
 }
 
@@ -83,7 +119,7 @@ extension References: Codable {
             }
             return id
         }
-        self.init(wrappedValue: ids, to: Target.self, action: references.first?.action ?? .none)
+        self.init(wrappedValue: ids, action: references.first?.action ?? .none, storage: nil)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -94,7 +130,7 @@ extension References: Codable {
 
 extension KeyedDecodingContainer {
     public func decode<Target>(_ type: References<Target>.Type, forKey key: Key) throws -> References<Target> {
-        try decodeIfPresent(type, forKey: key) ?? References(to: Target.self)
+        try decodeIfPresent(type, forKey: key) ?? References(wrappedValue: [], action: .none, storage: nil)
     }
 }
 

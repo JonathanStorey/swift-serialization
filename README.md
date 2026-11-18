@@ -199,7 +199,7 @@ struct Folder: Codable, Identifiable {
 
 struct Note: Codable, Identifiable {
     var id: UUID
-    @Reference(to: Folder.self, action: .deleteSelf) var folder: Folder.ID? = nil
+    @Reference(Folder.self, action: .deleteSelf) var folder: Folder.ID? = nil
 }
 
 let note = Note(id: UUID(), folder: folder.id)
@@ -223,42 +223,44 @@ the action `.none`.
 ### Reference lists
 
 `@References` holds a read-only to-many relationship as the targets' ids, in
-order. Each reference is stored as its own `Relationship` record instead of
-in a field on the record, so the list has no size limit, edits from two
-devices merge, and the target never has to declare an inverse.
+order. The initializer picks how the list is stored, and the property reads
+the same either way.
 
 ```swift
 struct Note: Codable, Identifiable {
     var id: UUID
-    @References(to: Tag.self) var tags: [UUID] = []
-    @References(to: Player.self, action: .deleteSelf) var players: [UUID] = []
+    @References(Attachment.self) var attachments: [UUID] = []
+    @References(to: \Tag.notes, action: .deleteSelf) var tags: [UUID] = []
 }
-```
 
-A `Relationship` is named by the declaring side, as in `"Note.tags"`, with
-the declaring record's id and then the target's. Its id is a stable hash of
-those three values, so the same link always maps to the same record. It
-also holds `order`, the link's position in the declaring list, and
-`inverseOrder`, its position in an inverse's list. The wrapper stores only the ids and
-its action, and encodes each id as a `RecordRepresentation.Reference`
-carrying the action, which a decoded list takes from its first element.
-With `.deleteSelf`, the record holding the property deletes itself when any
-target is deleted. An empty list is left out, and a missing key
-decodes as an empty list.
-
-An inverse reads the same links from the other end. It names the declaring
-type and the coding key that side encodes, and sorts by `inverseOrder`.
-
-```swift
 struct Tag: Codable, Identifiable {
     var id: UUID
     @References(from: Note.self, key: "tags") var notes: [UUID] = []
 }
 ```
 
-Use `@Reference` for one target and `@References` for many. One target is a
-field, so it travels with the record and two devices settle on one value.
-Many targets are links, so they merge.
+A target type alone stores the list as one reference list field, like
+`CKRecord`'s own, so it travels with the record and two devices settle on
+one list. A key path to the target's inverse stores each reference as its
+own `Relationship` record instead, so the list has no size limit and edits
+from two devices merge. The inverse names the declaring type and the coding
+key that side encodes, and reads the same links from the other end.
+
+A `Relationship` is named by the declaring side, as in `"Note.tags"`, with
+the declaring record's id and then the target's. Its id is a stable hash of
+those three values, so the same link always maps to the same record. It
+also holds `order`, the link's position in the declaring list, and
+`inverseOrder`, its position in the inverse's list, and each side sorts by
+its own.
+
+Either way the wrapper encodes each id as a `RecordRepresentation.Reference`
+carrying the action, which a decoded list takes from its first element.
+With `.deleteSelf`, the record holding the property deletes itself when any
+target is deleted. An empty list is left out, and a missing key decodes as
+an empty list.
+
+Use `@Reference` for one target and `@References` for many. Add a key path
+when the list should merge across devices or outgrow a field.
 
 ### Locations
 

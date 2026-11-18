@@ -8,11 +8,11 @@ private struct Folder: Codable, Identifiable {
 
 private struct Note: Codable, Hashable, Identifiable {
     var id: UUID
-    @Reference(to: Folder.self) var folder: Folder.ID? = nil
+    @Reference(Folder.self) var folder: Folder.ID? = nil
 }
 
 private struct Child: Codable, Hashable {
-    @Reference(to: Folder.self, action: .deleteSelf) var folder: Folder.ID? = nil
+    @Reference(Folder.self, action: .deleteSelf) var folder: Folder.ID? = nil
 
     /// The wrapper's storage is private, so only this file can read it.
     var folderAction: RecordRepresentation.Reference.Action { _folder.action }
