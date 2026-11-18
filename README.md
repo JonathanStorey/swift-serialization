@@ -351,22 +351,6 @@ Reading `attachment` maps the file into memory, so bytes load only as they
 are used. The wrapper encodes the URL, not the bytes. A URL is local to one
 device, and CloudKit hands back a new one each time a record is fetched.
 
-### Indexes
-
-`@Indexed` marks a property CloudKit indexes, so queries can filter and sort
-by it. In production, a query on a field without an index fails. The
-indexes are a `RecordRepresentation.Index` option set, and the default is
-`[.queryable, .sortable]`.
-
-```swift
-@Indexed var created: Date = Date()
-@Indexed([.queryable, .searchable]) var title: String = ""
-```
-
-`.queryable` allows `==` and `CONTAINS`, `.sortable` allows `<`, `>` and
-sorting, and `.searchable` allows word search inside a string. The wrapper
-encodes exactly as its value does, so JSON is unchanged.
-
 ### Transient values
 
 `@Transient` holds a value only in memory, such as a cache or interface

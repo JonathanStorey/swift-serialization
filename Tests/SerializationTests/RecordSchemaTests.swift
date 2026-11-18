@@ -36,7 +36,6 @@ private struct Note: Codable, Identifiable {
     @Asset var attachment: Data? = nil
     @Encrypted var body: String = ""
     @Encrypted var pin: Int? = nil
-    @Indexed var rank: Int = 0
     @Reference(Folder.self) var folder: UUID? = nil
     @Parent(Folder.self) var owner: UUID? = nil
     @References(to: \Tag.notes) var tags: [UUID] = []
@@ -133,7 +132,6 @@ private enum MoreMoods {
             "attachment": "ASSET",
             "body": "STRING",
             "pin": "INT64",
-            "rank": "INT64",
             "folder": "REFERENCE",
             "owner": "REFERENCE",
             "tags": "LIST<REFERENCE>",
