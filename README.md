@@ -394,6 +394,17 @@ migration.
 `id` is a stable `UUID` computed from the schema, and a schema stored with
 `Codable` reads back equal.
 
+On Apple platforms, `contains(_:)` asks whether the type can read a
+`CKRecord` it fetched, such as one saved by a newer version of the app:
+
+```swift
+schema.contains(record)          // Note can read this CKRecord
+```
+
+The record type must match, every required field must be present with the
+field's CloudKit type, encrypted fields must be in `encryptedValues`, and an
+enum field must hold one of its cases.
+
 ## Requirements
 
 - Swift 6.0 or later (Xcode 16+)

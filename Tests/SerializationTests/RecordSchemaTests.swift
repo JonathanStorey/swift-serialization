@@ -208,3 +208,63 @@ private enum MoreMoods {
         #expect(throws: DecodingError.self) { try RecordSchema.name(of: \Tag.related) }
     }
 }
+
+#if canImport(CloudKit)
+import CloudKit
+
+private enum Listed {
+    struct Item: Codable {
+        var words: [String]
+    }
+}
+
+@Suite struct RecordSchemaRecordTests {
+    private func item(_ values: [String: CKRecordValue?], encrypted: [String: CKRecordValue?] = [:], type: String = "Item") -> CKRecord {
+        let record = CKRecord(recordType: type)
+        for (key, value) in values { record[key] = value }
+        for (key, value) in encrypted { record.encryptedValues[key] = value }
+        return record
+    }
+
+    private let valid: [String: CKRecordValue?] = ["name": "A" as NSString, "count": 2 as NSNumber, "mood": "calm" as NSString]
+
+    @Test func readsAMatchingRecord() throws {
+        #expect(try RecordSchema(for: V1.Item.self).contains(item(valid)))
+    }
+
+    @Test func rejectsAnotherRecordType() throws {
+        #expect(try !RecordSchema(for: V1.Item.self).contains(item(valid, type: "Other")))
+    }
+
+    @Test func requiresRequiredFieldsOnly() throws {
+        var missing = valid
+        missing["count"] = nil
+        #expect(try !RecordSchema(for: V1.Item.self).contains(item(missing)))
+        #expect(try RecordSchema(for: Added.Item.self).contains(item(valid)))
+    }
+
+    @Test func checksTypesAndCases() throws {
+        let schema = try RecordSchema(for: V1.Item.self)
+        var fractional = valid
+        fractional["count"] = 1.5 as NSNumber
+        #expect(!schema.contains(item(fractional)))
+        var unknownCase = valid
+        unknownCase["mood"] = "sleepy" as NSString
+        #expect(!schema.contains(item(unknownCase)))
+    }
+
+    @Test func readsEncryptedFieldsFromEncryptedValues() throws {
+        let schema = try RecordSchema(for: Encrypting.Item.self)
+        var plain = valid
+        plain["count"] = nil
+        #expect(schema.contains(item(plain, encrypted: ["count": 2 as NSNumber])))
+        #expect(!schema.contains(item(valid)))
+    }
+
+    @Test func checksListElements() throws {
+        let schema = try RecordSchema(for: Listed.Item.self)
+        #expect(schema.contains(item(["words": ["a", "b"] as NSArray])))
+        #expect(!schema.contains(item(["words": ["a", 1] as NSArray])))
+    }
+}
+#endif
