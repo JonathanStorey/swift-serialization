@@ -8,6 +8,9 @@ private struct Tag: Codable, Identifiable {
 
 private struct Note: Codable, Hashable {
     @References(to: Tag.self) var tags: [UUID] = []
+
+    /// The wrapper's storage is private, so only this file can read it.
+    var tagsInverse: String? { _tags.inverse }
 }
 
 private struct Post: Codable, Identifiable {
@@ -16,10 +19,14 @@ private struct Post: Codable, Identifiable {
 
 private struct Label: Codable, Hashable {
     @References(from: Post.self, key: "labels") var posts: [UUID] = []
+
+    var postsInverse: String? { _posts.inverse }
 }
 
 private struct Match: Codable, Hashable {
     @References(to: Tag.self, action: .deleteSelf) var tags: [UUID] = []
+
+    var tagsAction: RecordRepresentation.Reference.Action { _tags.action }
 }
 
 @Suite struct ReferencesTests {
@@ -48,13 +55,13 @@ private struct Match: Codable, Hashable {
         let model = Match(tags: [a, b])
         let decoded = try JSONDecoder().decode(Match.self, from: JSONEncoder().encode(model))
         #expect(decoded == model)
-        #expect(decoded._tags.action == .deleteSelf)
-        #expect(try JSONDecoder().decode(Match.self, from: Data("{}".utf8))._tags.action == .none)
+        #expect(decoded.tagsAction == .deleteSelf)
+        #expect(try JSONDecoder().decode(Match.self, from: Data("{}".utf8)).tagsAction == .none)
     }
 
     @Test func inverseNamesTheDeclaringKeyPath() {
-        #expect(Label()._posts.inverse == "Post.labels")
-        #expect(Note()._tags.inverse == nil)
+        #expect(Label().postsInverse == "Post.labels")
+        #expect(Note().tagsInverse == nil)
     }
 
     @Test func inverseSortsByInverseOrder() {

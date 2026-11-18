@@ -13,6 +13,9 @@ private struct Note: Codable, Hashable, Identifiable {
 
 private struct Child: Codable, Hashable {
     @Reference(to: Folder.self, action: .deleteSelf) var folder: Folder.ID? = nil
+
+    /// The wrapper's storage is private, so only this file can read it.
+    var folderAction: RecordRepresentation.Reference.Action { _folder.action }
 }
 
 @Suite struct ReferenceTests {
@@ -63,15 +66,15 @@ private struct Child: Codable, Hashable {
 
     @Test func keepsTheAction() throws {
         let child = Child(folder: folderID)
-        #expect(child._folder.action == .deleteSelf)
+        #expect(child.folderAction == .deleteSelf)
         #expect(try json(child) == #"{"folder":{"action":"deleteSelf","recordName":"E621E1F8-C36C-495A-93FC-0C247A3E6E5F"}}"#)
         let decoded = try JSONDecoder().decode(Child.self, from: JSONEncoder().encode(child))
         #expect(decoded == child)
-        #expect(decoded._folder.action == .deleteSelf)
+        #expect(decoded.folderAction == .deleteSelf)
     }
 
     @Test func aNilReferenceDecodesWithNone() throws {
-        #expect(try JSONDecoder().decode(Child.self, from: Data("{}".utf8))._folder.action == .none)
+        #expect(try JSONDecoder().decode(Child.self, from: Data("{}".utf8)).folderAction == .none)
     }
 
     @Test func recordReferenceIsCodable() throws {
