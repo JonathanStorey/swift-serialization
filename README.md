@@ -381,7 +381,7 @@ current.fields["created"]?.type   // TIMESTAMP
 Each field has its CloudKit type, whether it is encrypted, and the
 `JSONSchema` of what it holds. `Date` is `TIMESTAMP`, `Data` is `BYTES`,
 `Location` is `LOCATION`, `@Asset` is `ASSET`, references are `REFERENCE`,
-arrays are `LIST`, and a nested value is `BYTES`. `@Timestamp` and
+arrays are `LIST`, and a nested value or a list of optionals is `BYTES`, because a CloudKit list cannot hold `nil`. `@Timestamp` and
 `@Transient` properties are never written, so they are not fields.
 
 The checks are stricter than `JSONSchema`'s, because CloudKit never changes
