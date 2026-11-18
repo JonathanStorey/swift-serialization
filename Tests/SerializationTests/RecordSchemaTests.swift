@@ -32,6 +32,7 @@ private struct Note: Codable, Identifiable {
     var mood: Mood
     var size: Size
     var words: [String]
+    var maybeWords: [String?]
     var home: Location?
     @Asset var attachment: Data? = nil
     @Encrypted var body: String = ""
@@ -128,6 +129,7 @@ private enum MoreMoods {
             "mood": "STRING",
             "size": "BYTES",
             "words": "LIST<STRING>",
+            "maybeWords": "BYTES",
             "home": "LOCATION",
             "attachment": "ASSET",
             "body": "STRING",
