@@ -11,6 +11,10 @@ private struct Note: Codable, Hashable {
     @References(to: Tag.self) var tags: [UUID] = []
 }
 
+private struct Cascade: Codable, Hashable {
+    @References(to: Tag.self, action: .deleteSelf) var tags: [UUID] = []
+}
+
 @Suite struct ReferencesTests {
     private let note = UUID(uuidString: "00000000-0000-0000-0000-00000000000A")!
     private let a = UUID(uuidString: "00000000-0000-0000-0000-0000000000A1")!
@@ -147,6 +151,26 @@ private struct Note: Codable, Hashable {
         var model = saved([a, b, c])
         model.tags = [b, c, a]
         #expect(saves(model) == [a: 3])
+    }
+
+    // MARK: Action
+
+    @Test func actionDefaultsToNone() {
+        #expect(Note().$tags.action == .none)
+    }
+
+    @Test func encodesTheActionOnlyWhenItIsNotNone() throws {
+        #expect(try JSONRepresentation(Note(tags: [a]))["tags"]?["action"] == nil)
+        let model = Cascade(tags: [a])
+        #expect(try JSONRepresentation(model)["tags"]?["action"] == "deleteSelf")
+        let decoded = try JSONDecoder().decode(Cascade.self, from: JSONEncoder().encode(model))
+        #expect(decoded.$tags.action == .deleteSelf)
+        #expect(decoded == model)
+    }
+
+    @Test func fetchedRelationshipsTakeTheAction() {
+        let model = References<Tag>([], from: note, action: .deleteSelf)
+        #expect(model.action == .deleteSelf)
     }
 
     // MARK: Coding

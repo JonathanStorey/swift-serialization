@@ -242,6 +242,14 @@ note.$tags.removed                      // ids unlinked since the last save
 note.$tags.links                        // the stored links, sorted by order
 ```
 
+Like `@Reference`, it takes an `action`. With `.deleteSelf`, the declaring
+record deletes itself when any target is deleted, as a `CKRecord.Reference`
+does. With `.none`, the default, only the link to a deleted target goes.
+
+```swift
+@References(to: Player.self, action: .deleteSelf) var players: [UUID] = []
+```
+
 Use `@Reference` for one target and `@References` for many. One target is a
 field, so it travels with the record and two devices settle on one value.
 Many targets are links, so they merge.

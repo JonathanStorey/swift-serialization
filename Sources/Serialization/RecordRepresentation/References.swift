@@ -33,6 +33,12 @@ import Foundation
 /// declaring key path and record when it builds the links with
 /// ``changes(keyPath:from:)``.
 ///
+/// The action follows `CKRecord.Reference`: with `.deleteSelf`, the record
+/// that declares the relationship deletes itself when any target is deleted.
+/// With `.none`, only the link to a deleted target goes. Swift does not pass
+/// the attribute's arguments to `init(from:)`, so a local copy encodes the
+/// action, as ``Reference`` does.
+///
 /// Inserted targets are new records. Saving one that already exists on the
 /// server is a conflict that the server copy wins, so a stale copy never
 /// overwrites an edit. Edit an existing target by saving it directly.
@@ -42,14 +48,17 @@ public struct References<Target: Identifiable & Codable> where Target.ID == UUID
         didSet { inserted.removeAll { !wrappedValue.contains($0.id) } }
     }
 
+    public var action: RecordRepresentation.Reference.Action
+
     /// New targets to create with this relationship's next save.
     public private(set) var inserted: [Target] = []
 
     /// The links stored at the last save or fetch, by target id.
     private var saved: [UUID: Relationship] = [:]
 
-    public init(wrappedValue: [UUID] = [], to target: Target.Type) {
+    public init(wrappedValue: [UUID] = [], to target: Target.Type, action: RecordRepresentation.Reference.Action = .none) {
         self.wrappedValue = wrappedValue
+        self.action = action
     }
 
     /// The wrapper itself, so that `$property.links` and
@@ -88,8 +97,8 @@ public struct References<Target: Identifiable & Codable> where Target.ID == UUID
 extension References {
     /// A fetched relationship, from the links that the record `source`
     /// declares, in any order.
-    package init(_ links: [Relationship], from source: UUID) {
-        self.init(to: Target.self)
+    package init(_ links: [Relationship], from source: UUID, action: RecordRepresentation.Reference.Action = .none) {
+        self.init(to: Target.self, action: action)
         saved = Dictionary(links.map { ($0.target(from: source), $0) }, uniquingKeysWith: { first, _ in first })
         wrappedValue = savedIDs
     }
@@ -142,17 +151,18 @@ extension References: Hashable where Target: Hashable {}
 extension References: Sendable where Target: Sendable {}
 
 /// Encodes the saved links by target id under `links`, so a local copy keeps
-/// them. It adds `ids` when they differ from the saved links' order and
-/// `inserted` while there are new targets. A relationship that was never
-/// saved encodes only its `ids`.
+/// them. It adds `ids` when they differ from the saved links' order,
+/// `inserted` while there are new targets, and `action` unless it is
+/// `.none`. A relationship that was never saved encodes only its `ids`.
 extension References: Codable {
     private enum CodingKeys: String, CodingKey {
-        case ids, links, inserted
+        case ids, links, inserted, action
     }
 
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        self.init(to: Target.self)
+        let action = try container.decodeIfPresent(RecordRepresentation.Reference.Action.self, forKey: .action) ?? .none
+        self.init(to: Target.self, action: action)
         let links = try container.decodeIfPresent([String: Relationship].self, forKey: .links) ?? [:]
         saved = try Dictionary(uniqueKeysWithValues: links.map { entry in
             guard let id = UUID(uuidString: entry.key) else {
@@ -174,6 +184,9 @@ extension References: Codable {
         }
         if !inserted.isEmpty {
             try container.encode(inserted, forKey: .inserted)
+        }
+        if action != .none {
+            try container.encode(action, forKey: .action)
         }
     }
 }
