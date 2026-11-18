@@ -56,13 +56,15 @@ public struct References<Target: Identifiable>: Sendable where Target.ID == UUID
         case field
         /// ``Relationship`` records named by this side.
         case links
-        /// ``Relationship`` records named by the declaring property.
-        case inverse(KeyPath<Target, [UUID]> & Sendable)
+        /// ``Relationship`` records named by the declaring property. `name`
+        /// finds the link name, which needs the declaring type to be
+        /// `Decodable`, as the inverse initializer requires.
+        case inverse(KeyPath<Target, [UUID]> & Sendable, name: @Sendable () throws -> String)
 
         package static func == (lhs: Storage, rhs: Storage) -> Bool {
             switch (lhs, rhs) {
             case (.field, .field), (.links, .links): true
-            case let (.inverse(lhs), .inverse(rhs)): lhs == rhs
+            case let (.inverse(lhs, _), .inverse(rhs, _)): lhs == rhs
             default: false
             }
         }
@@ -73,15 +75,9 @@ public struct References<Target: Identifiable>: Sendable where Target.ID == UUID
     /// type on each call, so store it when you need it repeatedly.
     package var inverse: String? {
         get throws {
-            guard case .inverse(let keyPath) = storage else { return nil }
-            return try Self.linkName(keyPath, in: Target.self as! any Decodable.Type)
+            guard case .inverse(_, let name) = storage else { return nil }
+            return try name()
         }
-    }
-
-    /// Opens the declaring type, which the inverse initializer requires to
-    /// be `Decodable`.
-    private static func linkName<Root: Decodable>(_ keyPath: AnyKeyPath, in root: Root.Type) throws -> String {
-        try RecordSchema.name(of: keyPath as! KeyPath<Root, [UUID]>)
     }
 
     fileprivate init(wrappedValue: [UUID], action: RecordRepresentation.Reference.Action, storage: Storage?) {
@@ -105,7 +101,7 @@ public struct References<Target: Identifiable>: Sendable where Target.ID == UUID
     /// The inverse of the list at `declaringProperty`, reading the same
     /// ``Relationship`` records from the other side.
     public init(wrappedValue: [UUID] = [], from declaringProperty: KeyPath<Target, [UUID]> & Sendable, action: RecordRepresentation.Reference.Action = .none) where Target: Decodable {
-        self.init(wrappedValue: wrappedValue, action: action, storage: .inverse(declaringProperty))
+        self.init(wrappedValue: wrappedValue, action: action, storage: .inverse(declaringProperty, name: { try RecordSchema.name(of: declaringProperty) }))
     }
 }
 
