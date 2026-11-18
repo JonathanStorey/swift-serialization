@@ -19,8 +19,19 @@ import Foundation
 public struct Timestamp: Hashable, Sendable {
     public let wrappedValue: Date?
 
+    /// Placeholder for change tracking, always `nil` for now.
+    ///
+    /// The record decoder will set it when it decodes a model from a record:
+    /// a stable digest, `UUID(stableHashOf:)`, of the model's encoding as the
+    /// server saved it. A model-level `hasChanges` will then compare it with
+    /// the digest of the model's current encoding. It lives here because a
+    /// timestamp is never encoded and never affects equality or hashing, so
+    /// storing the digest cannot change the model it describes.
+    package let digest: UUID?
+
     public init(wrappedValue: Date? = nil) {
         self.wrappedValue = wrappedValue
+        digest = nil
     }
 
     /// Always true, so the date never affects a model's equality.
