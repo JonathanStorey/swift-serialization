@@ -26,12 +26,33 @@ private struct Folder: Codable, Hashable {
 
 private struct Post: Codable, Identifiable {
     var id: UUID
+    @References(to: \Label.posts) var labels: [UUID] = []
 }
 
-private struct Label: Codable, Hashable {
-    @References(from: Post.self, key: "labels") var posts: [UUID] = []
+private struct Label: Codable, Hashable, Identifiable {
+    var id = UUID()
+    @References(from: \Post.labels) var posts: [UUID] = []
 
     var postsStorage: References<Post>.Storage? { _posts.storage }
+    var postsInverse: String? { get throws { try _posts.inverse } }
+}
+
+/// Stores `labels` under another coding key.
+private struct Article: Codable, Identifiable {
+    var id: UUID
+    @References(to: \Sticker.articles) var labels: [UUID] = []
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case labels = "stickers"
+    }
+}
+
+private struct Sticker: Codable, Identifiable {
+    var id = UUID()
+    @References(from: \Article.labels) var articles: [UUID] = []
+
+    var articlesInverse: String? { get throws { try _articles.inverse } }
 }
 
 private struct Match: Codable, Hashable {
@@ -73,7 +94,12 @@ private struct Match: Codable, Hashable {
     @Test func initializerPicksTheStorage() {
         #expect(Folder().attachmentsStorage == .field)
         #expect(Note().tagsStorage == .links)
-        #expect(Label().postsStorage == .inverse("Post.labels"))
+        #expect(Label().postsStorage == .inverse(\Post.labels))
+    }
+
+    @Test func inverseNamesTheDeclaringCodingKey() throws {
+        #expect(try Label().postsInverse == "Post.labels")
+        #expect(try Sticker().articlesInverse == "Article.stickers")
     }
 
     @Test func decodedListHasNoStorageAndStillEqualsTheOriginal() throws {

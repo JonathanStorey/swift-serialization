@@ -44,7 +44,7 @@ extension Encrypted: Decodable where Value: Decodable {
 
 extension KeyedDecodingContainer {
     public func decode<Wrapped: Decodable>(_ type: Encrypted<Wrapped?>.Type, forKey key: Key) throws -> Encrypted<Wrapped?> {
-        Encrypted(wrappedValue: try decodeIfPresent(Wrapped.self, forKey: key))
+        try decodeIfPresent(type, forKey: key) ?? Encrypted(wrappedValue: nil)
     }
 }
 

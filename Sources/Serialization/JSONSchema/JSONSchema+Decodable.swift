@@ -30,6 +30,16 @@ extension JSONSchema {
         _ = try recorder.decode(type)
         self = try recorder.schema()
     }
+
+    /// Records `type` as `init(for:)` does, and also returns the placeholder
+    /// value it decoded, the record hints seen at each coding path, and the
+    /// placeholder record names handed out, by coding path.
+    package static func record<T: Decodable>(_ type: T.Type) throws -> (value: T, schema: JSONSchema, hints: [[String]: Set<RecordHint>], markers: [UUID: [String]]) {
+        let context = SchemaRecorder.Context()
+        let recorder = SchemaRecorder(codingPath: [], context: context)
+        let value = try recorder.decode(type)
+        return (value, try recorder.schema(), context.hints, context.markers)
+    }
 }
 
 // MARK: - Recorder
@@ -41,6 +51,12 @@ private final class SchemaRecorder: Decoder {
     final class Context {
         /// Types being recorded on the current path, to detect recursion.
         var visiting: Set<ObjectIdentifier> = []
+        /// What each coding path holds for a CloudKit record, such as a
+        /// `Date` or an `Encrypted` value, for ``RecordSchema``.
+        var hints: [[String]: Set<RecordHint>] = [:]
+        /// The record name each placeholder reference was given, so a key
+        /// path read from the placeholder value finds its coding path.
+        var markers: [UUID: [String]] = [:]
     }
 
     enum Kind {
@@ -81,6 +97,10 @@ private final class SchemaRecorder: Decoder {
 
 extension SchemaRecorder {
     func decode<T: Decodable>(_ type: T.Type) throws -> T {
+        let path = codingPath.map(\.stringValue)
+        if let hint = RecordHint(for: type) {
+            context.hints[path, default: []].insert(hint)
+        }
         if let value = try foundationPlaceholder(type) { return value }
 
         let id = ObjectIdentifier(type)
@@ -105,6 +125,13 @@ extension SchemaRecorder {
             value = first
         }
         recordCases(of: type)
+        // A reference gets a unique record name, so a key path can find it.
+        if var reference = value as? RecordRepresentation.Reference {
+            let marker = UUID()
+            context.markers[marker] = path
+            reference.recordName = marker.uuidString
+            return reference as? T ?? value
+        }
         return value
     }
 

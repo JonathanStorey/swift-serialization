@@ -14,7 +14,7 @@ import Foundation
 ///
 /// struct Tag: Codable, Identifiable {
 ///     var id: UUID
-///     @References(from: Note.self, key: "tags") var notes: [UUID] = [] // the inverse
+///     @References(from: \Note.tags) var notes: [UUID] = []        // the inverse
 /// }
 /// ```
 ///
@@ -26,8 +26,10 @@ import Foundation
 /// ``Relationship`` record, so the list has no size limit and edits from two
 /// devices merge. The key path is a signal, not a name: the link is named
 /// by the declaring side, as in `"Note.tags"`, from the coding key it
-/// encodes. The inverse names the declaring type and that coding key, and
-/// reads the same links from the other end.
+/// encodes. The inverse points back at the declaring property and reads the
+/// same links from the other end. Its link name comes from
+/// ``RecordSchema``, which finds the coding key behind the key path, so it
+/// follows `CodingKeys` and works on every platform.
 ///
 /// The property is set when the model is created or decoded and cannot be
 /// assigned afterwards. Either way it encodes each id as a
@@ -49,14 +51,37 @@ public struct References<Target: Identifiable>: Sendable where Target.ID == UUID
     /// How the list is stored, or `nil` when the wrapper was decoded.
     package let storage: Storage?
 
-    package enum Storage: Hashable, Sendable {
+    package enum Storage: Equatable, Sendable {
         /// One reference list field on the record.
         case field
         /// ``Relationship`` records named by this side.
         case links
-        /// ``Relationship`` records named by the declaring side, as in
-        /// `"Note.tags"`.
-        case inverse(String)
+        /// ``Relationship`` records named by the declaring property.
+        case inverse(KeyPath<Target, [UUID]> & Sendable)
+
+        package static func == (lhs: Storage, rhs: Storage) -> Bool {
+            switch (lhs, rhs) {
+            case (.field, .field), (.links, .links): true
+            case let (.inverse(lhs), .inverse(rhs)): lhs == rhs
+            default: false
+            }
+        }
+    }
+
+    /// The links an inverse reads, as in `"Note.tags"`, or `nil` when the
+    /// list is not an inverse. It decodes a placeholder of the declaring
+    /// type on each call, so store it when you need it repeatedly.
+    package var inverse: String? {
+        get throws {
+            guard case .inverse(let keyPath) = storage else { return nil }
+            return try Self.linkName(keyPath, in: Target.self as! any Decodable.Type)
+        }
+    }
+
+    /// Opens the declaring type, which the inverse initializer requires to
+    /// be `Decodable`.
+    private static func linkName<Root: Decodable>(_ keyPath: AnyKeyPath, in root: Root.Type) throws -> String {
+        try RecordSchema.name(of: keyPath as! KeyPath<Root, [UUID]>)
     }
 
     fileprivate init(wrappedValue: [UUID], action: RecordRepresentation.Reference.Action, storage: Storage?) {
@@ -77,13 +102,10 @@ public struct References<Target: Identifiable>: Sendable where Target.ID == UUID
         self.init(wrappedValue: wrappedValue, action: action, storage: .links)
     }
 
-    /// The inverse of the relationship that `declaringType` declares under
-    /// the coding key `key`, reading the same links from the other side.
-    ///
-    /// The key is the coding key the declaring side encodes, which is the
-    /// property name unless its `CodingKeys` rename it.
-    public init(wrappedValue: [UUID] = [], from declaringType: Target.Type, key: String, action: RecordRepresentation.Reference.Action = .none) {
-        self.init(wrappedValue: wrappedValue, action: action, storage: .inverse("\(Target.self).\(key)"))
+    /// The inverse of the list at `declaringProperty`, reading the same
+    /// ``Relationship`` records from the other side.
+    public init(wrappedValue: [UUID] = [], from declaringProperty: KeyPath<Target, [UUID]> & Sendable, action: RecordRepresentation.Reference.Action = .none) where Target: Decodable {
+        self.init(wrappedValue: wrappedValue, action: action, storage: .inverse(declaringProperty))
     }
 }
 

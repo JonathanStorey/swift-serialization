@@ -13,7 +13,7 @@ extension RecordRepresentation {
     public struct Reference: Codable, Hashable, Sendable {
         /// What CloudKit does to the record holding the reference when the
         /// target record is deleted. The cases match `CKRecord.ReferenceAction`.
-        public enum Action: String, Codable, Hashable, Sendable {
+        public enum Action: String, CaseIterable, Codable, Hashable, Sendable {
             /// Nothing. The reference is left pointing at a missing record.
             case none
             /// The record holding the reference is deleted too.

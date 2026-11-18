@@ -235,7 +235,7 @@ struct Note: Codable, Identifiable {
 
 struct Tag: Codable, Identifiable {
     var id: UUID
-    @References(from: Note.self, key: "tags") var notes: [UUID] = []
+    @References(from: \Note.tags) var notes: [UUID] = []
 }
 ```
 
@@ -243,8 +243,9 @@ A target type alone stores the list as one reference list field, like
 `CKRecord`'s own, so it travels with the record and two devices settle on
 one list. A key path to the target's inverse stores each reference as its
 own `Relationship` record instead, so the list has no size limit and edits
-from two devices merge. The inverse names the declaring type and the coding
-key that side encodes, and reads the same links from the other end.
+from two devices merge. The inverse points back at the declaring property
+and reads the same links from the other end. Its link name, `"Note.tags"`,
+comes from the coding key behind the key path, so it follows `CodingKeys`.
 
 A `Relationship` is named by the declaring side, as in `"Note.tags"`, with
 the declaring record's id and then the target's. Its id is a stable hash of
@@ -375,6 +376,39 @@ takes no part in equality or hashing. Its value need not be `Codable`.
 ```swift
 @Transient var thumbnail: Image? = nil
 ```
+
+## RecordSchema
+
+`RecordSchema(for:)` describes the fields a `Decodable` type stores in a
+CloudKit record, from the type alone, and tells you whether two versions of
+it can read each other's records.
+
+```swift
+let saved = try RecordSchema(for: NoteV1.self)
+let current = try RecordSchema(for: NoteV2.self)
+
+current.isSuperset(of: saved)     // V2 can read every record V1 saved
+current.isSubset(of: saved)       // V1 can read every record V2 saves
+current.isCompatible(with: saved) // both directions
+current.fields["created"]?.type   // TIMESTAMP
+```
+
+Each field has its CloudKit type, whether it is encrypted, and the
+`JSONSchema` of what it holds. `Date` is `TIMESTAMP`, `Data` is `BYTES`,
+`Location` is `LOCATION`, `@Asset` is `ASSET`, references are `REFERENCE`,
+arrays are `LIST`, and a nested value is `BYTES`. `@Timestamp` and
+`@Transient` properties are never written, so they are not fields.
+
+The checks are stricter than `JSONSchema`'s, because CloudKit never changes
+a field once it reaches production. A field's type and encryption must
+match, so `Int` to `Double` is incompatible. A new field must be optional,
+fields the reader does not declare are ignored, and enum cases must cover
+what the other side can write. Moving a `@References` list between a field
+and `Relationship` records does not change the type, so treat it as a
+migration.
+
+`id` is a stable `UUID` computed from the schema, and a schema stored with
+`Codable` reads back equal.
 
 ## Requirements
 
