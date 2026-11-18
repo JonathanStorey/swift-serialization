@@ -6,7 +6,7 @@ import Foundation
 /// ```swift
 /// struct Note: Codable, Hashable {
 ///     var title: String
-///     @Timestamp var updatedOnServer: Date?
+///     @Timestamp var updatedOnServer: Date? = nil
 /// }
 /// ```
 ///

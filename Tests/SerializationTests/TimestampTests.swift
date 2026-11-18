@@ -4,7 +4,7 @@ import Testing
 
 private struct Note: Codable, Hashable {
     var title: String
-    @Timestamp var updatedOnServer: Date?
+    @Timestamp var updatedOnServer: Date? = nil
 }
 
 @Suite struct TimestampTests {
