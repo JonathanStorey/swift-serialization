@@ -260,6 +260,28 @@ Use `@Reference` for one target and `@References` for many. One target is a
 field, so it travels with the record and two devices settle on one value.
 Many targets are links, so they merge.
 
+### Locations
+
+`@Location` marks a location property. `Location` holds every value a
+`CLLocation` saves to a CloudKit record: coordinate, altitude, accuracies,
+course, speed and timestamp. It is its own wrapped value, so the property
+reads and writes a plain `Location`, and on Apple platforms its projected
+value is a `CLLocation`.
+
+```swift
+struct Place: Codable {
+    @Location var home: Location
+}
+
+place.home.latitude                     // 41.88
+place.$home                             // CLLocation
+Location(clLocation)                    // back from CoreLocation
+```
+
+Unmeasured values follow CoreLocation: a negative accuracy, course or speed
+means the value is invalid. CoreLocation exists only on Apple platforms, so
+on Linux a `Location` has no projected value.
+
 ### Encrypted values
 
 `@Encrypted` marks a property that CloudKit stores encrypted end to end. It
