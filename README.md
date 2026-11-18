@@ -282,6 +282,22 @@ Unmeasured values follow CoreLocation: a negative accuracy, course or speed
 means the value is invalid. CoreLocation exists only on Apple platforms, so
 on Linux a `Location` has no projected value.
 
+### Timestamps
+
+`@Timestamp` holds a read-only date that the server sets, such as when
+CloudKit last modified the record.
+
+```swift
+struct Note: Codable, Hashable {
+    var title: String
+    @Timestamp var updatedOnServer: Date?
+}
+```
+
+The date is read when a model is decoded and never encoded, so it is never
+sent back to the server. It takes no part in equality or hashing, so two
+copies that differ only in when the server saved them are equal.
+
 ### Encrypted values
 
 `@Encrypted` marks a property that CloudKit stores encrypted end to end. It
