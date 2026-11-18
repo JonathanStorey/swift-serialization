@@ -15,7 +15,7 @@ import Foundation
 /// through `Note.tags` gives `keyPath == "Note.tags"` and
 /// `references == [note.id, tag.id]`, declaring record first. The target
 /// never needs to declare an inverse, and an inverse it does declare
-/// (`inverse: \Note.tags`) names the same key path, so both sides build
+/// (`@References(from: \Note.tags)`) names the same key path, so both sides build
 /// the same link. Adding or removing an inverse never changes a stored
 /// link.
 ///
@@ -26,21 +26,33 @@ public struct Relationship: Codable, Hashable, Sendable, Identifiable {
     public private(set) var keyPath: String
     /// The declaring record's id, then the target's id.
     @Related public private(set) var references: [UUID]
-    /// The target's position in the declaring record's list. Orders only
-    /// need to increase, so deleting a link never renumbers the others.
-    public private(set) var order: Int
+    /// The link's position in the list of `references[0]`, the declaring
+    /// record. Orders only need to increase, so deleting a link never
+    /// renumbers the others. `nil` means the link has not been placed yet,
+    /// because the other side created it, and it sorts last.
+    public private(set) var order: Int?
+    /// The link's position in the list of `references[1]`, for an inverse
+    /// declared with `@References(from:)`. Each side writes only its own
+    /// order, so the two sides never conflict over a field.
+    public private(set) var inverseOrder: Int?
 
     /// A link from `source` to `target` through `keyPath`, at `order` in
-    /// the source's list.
+    /// the source's list and `inverseOrder` in the target's.
     ///
     /// A symmetric relationship is its own inverse, like `Person.friends`.
-    /// It has no declaring side, so its ids are sorted and the link is the
-    /// same whichever record creates it.
-    package init(keyPath: String, from source: UUID, to target: UUID, order: Int = 0, symmetric: Bool = false) {
+    /// It has no declaring side, so its ids are sorted, with their orders,
+    /// and the link is the same whichever record creates it.
+    package init(keyPath: String, from source: UUID, to target: UUID, order: Int? = nil, inverseOrder: Int? = nil, symmetric: Bool = false) {
         self.keyPath = keyPath
-        self.order = order
-        let ids = [source, target]
-        _references = Related(symmetric ? ids.sorted { $0.uuidString < $1.uuidString } : ids)
+        if symmetric && target.uuidString < source.uuidString {
+            _references = Related([target, source])
+            self.order = inverseOrder
+            self.inverseOrder = order
+        } else {
+            _references = Related([source, target])
+            self.order = order
+            self.inverseOrder = inverseOrder
+        }
     }
 
     /// The link's record name: a stable hash of the key path and both ids,
@@ -55,6 +67,24 @@ public struct Relationship: Codable, Hashable, Sendable, Identifiable {
     /// The id at the other end of the link from `source`.
     package func target(from source: UUID) -> UUID {
         references[0] == source ? references[1] : references[0]
+    }
+
+    /// The link's order in the declaring list, or in the inverse list when
+    /// `inverse` is true.
+    package func order(inverse: Bool) -> Int? {
+        inverse ? inverseOrder : order
+    }
+
+    /// The link with its order in one list replaced, leaving the other
+    /// side's order alone.
+    package func reordered(_ newOrder: Int?, inverse: Bool) -> Relationship {
+        var link = self
+        if inverse {
+            link.inverseOrder = newOrder
+        } else {
+            link.order = newOrder
+        }
+        return link
     }
 }
 

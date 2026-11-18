@@ -11,7 +11,8 @@ import Testing
         let link = Relationship(keyPath: "Note.tags", from: note, to: tag)
         #expect(link.keyPath == "Note.tags")
         #expect(link.references == [note, tag])
-        #expect(link.order == 0)
+        #expect(link.order == nil)
+        #expect(link.inverseOrder == nil)
     }
 
     @Test func orderIsNotPartOfTheID() {
@@ -30,6 +31,21 @@ import Testing
 
     @Test func directionMatters() {
         #expect(Relationship(keyPath: "Person.follows", from: tag, to: note) != Relationship(keyPath: "Person.follows", from: note, to: tag))
+    }
+
+    @Test func keepsBothOrders() {
+        let link = Relationship(keyPath: "Note.tags", from: note, to: tag, order: 1, inverseOrder: 7)
+        #expect(link.order(inverse: false) == 1)
+        #expect(link.order(inverse: true) == 7)
+        #expect(link.reordered(4, inverse: true) == Relationship(keyPath: "Note.tags", from: note, to: tag, order: 1, inverseOrder: 4))
+        #expect(link.reordered(nil, inverse: false).order == nil)
+    }
+
+    @Test func symmetricRelationshipsSortTheirOrdersWithTheirIDs() {
+        let link = Relationship(keyPath: "Person.friends", from: tag, to: note, order: 1, inverseOrder: 2)
+        #expect(link.references == [note, tag])
+        #expect(link.order == 2)
+        #expect(link.inverseOrder == 1)
     }
 
     @Test func symmetricRelationshipsSortByID() {

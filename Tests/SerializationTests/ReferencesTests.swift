@@ -11,6 +11,17 @@ private struct Note: Codable, Hashable {
     @References(to: Tag.self) var tags: [UUID] = []
 }
 
+/// A declaring side and its inverse.
+private struct Post: Codable, Hashable, Identifiable {
+    var id: UUID
+    @References(to: Label.self) var labels: [UUID] = []
+}
+
+private struct Label: Codable, Hashable, Identifiable {
+    var id: UUID
+    @References(from: \Post.labels) var posts: [UUID] = []
+}
+
 private struct Cascade: Codable, Hashable {
     @References(to: Tag.self, action: .deleteSelf) var tags: [UUID] = []
 }
@@ -46,7 +57,7 @@ private struct Cascade: Codable, Hashable {
 
     /// The target ids and orders of the links a save would write.
     private func saves(_ model: Note) -> [UUID: Int] {
-        Dictionary(uniqueKeysWithValues: model.$tags.changes(keyPath: "Note.tags", from: note).save.map { ($0.target(from: note), $0.order) })
+        Dictionary(uniqueKeysWithValues: model.$tags.changes(keyPath: "Note.tags", from: note).save.map { ($0.target(from: note), $0.order ?? -1) })
     }
 
     // MARK: Changes
@@ -89,7 +100,7 @@ private struct Cascade: Codable, Hashable {
         var model = saved([a])
         model.tags = [b]
         let changes = model.$tags.changes(keyPath: "Note.tags", from: note)
-        #expect(changes.save == [Relationship(keyPath: "Note.tags", from: note, to: b)])
+        #expect(changes.save == [Relationship(keyPath: "Note.tags", from: note, to: b, order: 0)])
         #expect(changes.delete == [Relationship(keyPath: "Note.tags", from: note, to: a)])
     }
 
@@ -171,6 +182,50 @@ private struct Cascade: Codable, Hashable {
     @Test func fetchedRelationshipsTakeTheAction() {
         let model = References<Tag>([], from: note, action: .deleteSelf)
         #expect(model.action == .deleteSelf)
+    }
+
+    // MARK: Inverse
+
+    @Test func inverseNamesTheDeclaringKeyPath() {
+        #expect(Label(id: a).$posts.inverse == "Post.labels")
+        #expect(Post(id: a).$labels.inverse == nil)
+    }
+
+    @Test func inverseBuildsTheDeclaringSidesLink() {
+        var label = Label(id: a)
+        label.posts = [note]
+        let changes = label.$posts.changes(keyPath: "Label.posts", from: a)
+        #expect(changes.save == [Relationship(keyPath: "Post.labels", from: note, to: a, inverseOrder: 0)])
+        var post = Post(id: note)
+        post.labels = [a]
+        #expect(post.$labels.changes(keyPath: "Post.labels", from: note).save.map(\.id) == changes.save.map(\.id))
+    }
+
+    @Test func eachSideWritesOnlyItsOwnOrder() {
+        let shared = [Relationship(keyPath: "Post.labels", from: note, to: a, order: 3, inverseOrder: 0)]
+        var label = Label(id: a)
+        label.$posts = References(shared + [Relationship(keyPath: "Post.labels", from: b, to: a, order: 0, inverseOrder: 1)], from: a, inverse: "Post.labels")
+        #expect(label.posts == [note, b])
+        label.posts = [b, note]
+        let saved = label.$posts.changes(keyPath: "Label.posts", from: a).save
+        #expect(saved == [Relationship(keyPath: "Post.labels", from: note, to: a, order: 3, inverseOrder: 2)])
+    }
+
+    @Test func linksFromTheOtherSideSortLastAndArePlacedOnSave() {
+        var model = fetched(a: 0, b: 1)
+        model.$tags = References(model.$tags.links + [Relationship(keyPath: "Note.tags", from: note, to: c, inverseOrder: 0)], from: note)
+        #expect(model.tags == [a, b, c])
+        #expect(model.$tags.added.isEmpty)
+        let saved = model.$tags.changes(keyPath: "Note.tags", from: note).save
+        #expect(saved == [Relationship(keyPath: "Note.tags", from: note, to: c, order: 2, inverseOrder: 0)])
+    }
+
+    @Test func inverseRoundTrips() throws {
+        var label = Label(id: a)
+        label.posts = [note]
+        let decoded = try JSONDecoder().decode(Label.self, from: JSONEncoder().encode(label))
+        #expect(decoded == label)
+        #expect(decoded.$posts.inverse == "Post.labels")
     }
 
     // MARK: Coding

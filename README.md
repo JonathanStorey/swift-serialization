@@ -242,9 +242,21 @@ note.$tags.removed                      // ids unlinked since the last save
 note.$tags.links                        // the stored links, sorted by order
 ```
 
-Like `@Reference`, it takes an `action`. With `.deleteSelf`, the declaring
-record deletes itself when any target is deleted, as a `CKRecord.Reference`
-does. With `.none`, the default, only the link to a deleted target goes.
+An inverse reads the same links from the other end. Either side can add or
+remove links, and each keeps its own order on the link, `order` for the
+declaring side and `inverseOrder` for the inverse. A link the other side
+created sorts last until this side's next save places it.
+
+```swift
+struct Tag: Codable, Identifiable {
+    var id: UUID
+    @References(from: \Note.tags) var notes: [UUID] = []
+}
+```
+
+Like `@Reference`, it takes an `action`. With `.deleteSelf`, the record
+holding the property deletes itself when any record at the other end is
+deleted, as with a `CKRecord.Reference`. With `.none`, the default, only the link to a deleted target goes.
 
 ```swift
 @References(to: Player.self, action: .deleteSelf) var players: [UUID] = []
