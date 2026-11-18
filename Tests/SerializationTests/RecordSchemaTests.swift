@@ -271,7 +271,7 @@ private enum Listed {
     @Test func checksListElements() throws {
         let schema = try RecordSchema(for: Listed.Item.self)
         #expect(schema.contains(item(["words": ["a", "b"] as NSArray])))
-        #expect(!schema.contains(item(["words": ["a", 1] as NSArray])))
+        #expect(!schema.contains(item(["words": [1, 2] as NSArray])))
     }
 }
 #endif
