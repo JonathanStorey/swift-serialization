@@ -262,6 +262,22 @@ an empty list.
 Use `@Reference` for one target and `@References` for many. Add a key path
 when the list should merge across devices or outgrow a field.
 
+### Parents
+
+`@Parent` is a read-only `@Reference` to the record that owns this one, and
+it is saved as the record's `parent`. CloudKit shares a record together with
+every record whose parent points at it, so sharing a folder shares its notes.
+
+```swift
+struct Note: Codable, Identifiable {
+    var id: UUID
+    @Parent(Folder.self) var folder: Folder.ID? = nil
+}
+```
+
+It encodes like a `@Reference` with no action, because CloudKit requires a
+parent reference to have the action `.none`.
+
 ### Locations
 
 `Location` holds every value a `CLLocation` saves to a CloudKit record:
@@ -333,6 +349,32 @@ let pdf = PDFDocument(url: note.$attachment!)
 Reading `attachment` maps the file into memory, so bytes load only as they
 are used. The wrapper encodes the URL, not the bytes. A URL is local to one
 device, and CloudKit hands back a new one each time a record is fetched.
+
+### Indexes
+
+`@Indexed` marks a property CloudKit indexes, so queries can filter and sort
+by it. In production, a query on a field without an index fails. The
+indexes are a `RecordRepresentation.Index` option set, and the default is
+`[.queryable, .sortable]`.
+
+```swift
+@Indexed var created: Date = Date()
+@Indexed([.queryable, .searchable]) var title: String = ""
+```
+
+`.queryable` allows `==` and `CONTAINS`, `.sortable` allows `<`, `>` and
+sorting, and `.searchable` allows word search inside a string. The wrapper
+encodes exactly as its value does, so JSON is unchanged.
+
+### Transient values
+
+`@Transient` holds a value only in memory, such as a cache or interface
+state. It is never encoded, it is `nil` whenever a model is decoded, and it
+takes no part in equality or hashing. Its value need not be `Codable`.
+
+```swift
+@Transient var thumbnail: Image? = nil
+```
 
 ## Requirements
 
