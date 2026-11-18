@@ -17,6 +17,7 @@ extension RecordSchema {
     /// raw-value enum must hold one of its cases, and a `Bool` must be 0 or
     /// 1. Fields the type does not declare are ignored. A nested value
     /// stored as bytes is checked only as `Data`.
+    @available(macOS 12, iOS 15, tvOS 15, watchOS 8, *)
     public func contains(_ record: CKRecord) -> Bool {
         record.recordType == recordType && fields.allSatisfy { key, field in
             let value: CKRecordValue? = field.isEncrypted ? record.encryptedValues[key] : record[key]

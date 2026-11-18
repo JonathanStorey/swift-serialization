@@ -218,6 +218,7 @@ private enum Listed {
     }
 }
 
+@available(macOS 12, iOS 15, tvOS 15, watchOS 8, *)
 @Suite struct RecordSchemaRecordTests {
     private func item(_ values: [String: CKRecordValue?], encrypted: [String: CKRecordValue?] = [:], type: String = "Item") -> CKRecord {
         let record = CKRecord(recordType: type)

@@ -394,7 +394,8 @@ migration.
 `id` is a stable `UUID` computed from the schema, and a schema stored with
 `Codable` reads back equal.
 
-On Apple platforms, `contains(_:)` asks whether the type can read a
+On Apple platforms with CloudKit encryption (macOS 12, iOS 15 and later),
+`contains(_:)` asks whether the type can read a
 `CKRecord` it fetched, such as one saved by a newer version of the app:
 
 ```swift
