@@ -188,9 +188,9 @@ array of changes, and its `description` is the readable form shown above.
 
 ### References
 
-`@Reference` stores a link to another `Identifiable` model as that model's
-`id`, ready for CloudKit's `CKRecord.Reference`. The generic target is
-inferred from the type you pass.
+`@Reference` holds a read-only link to another `Identifiable` model as that
+model's `id`, ready for CloudKit's `CKRecord.Reference`. The generic target
+is inferred from the type you pass.
 
 ```swift
 struct Folder: Codable, Identifiable {
@@ -199,83 +199,46 @@ struct Folder: Codable, Identifiable {
 
 struct Note: Codable, Identifiable {
     var id: UUID
-    @Reference(to: Folder.self, action: .deleteSelf) var folder: Folder.ID? = nil
+    @Reference(to: Folder.self) var folder: Folder.ID? = nil
 }
 
-var note = Note(id: UUID(), folder: folder.id)
+let note = Note(id: UUID(), folder: folder.id)
 note.folder                      // Optional(folder.id)
-note.$folder.action              // .deleteSelf
 ```
 
-The wrapper encodes a `RecordRepresentation.Reference`, the target's record
-name with its action, so `JSONEncoder` writes
-`{"folder":{"action":"deleteSelf","recordName":"..."},"id":"..."}`. A `nil`
+The property is set when the model is created or decoded, and the wrapper
+stores only the id. It encodes a `RecordRepresentation.Reference`, so
+`JSONEncoder` writes
+`{"folder":{"action":"none","recordName":"..."},"id":"..."}`. A `nil`
 reference is left out, and a missing key decodes as `nil`. The target's `id`
 must be a `UUID`, and the record name is its `uuidString`, which is always a
 valid CloudKit record name and reads back exactly.
 
-A decoded reference keeps the action it was saved with. Swift does not pass
-the attribute's arguments to `init(from:)`, so a reference decoded as `nil`
-has the action `.none` until you set `$folder.action`.
-
 ### Reference lists
 
-`@References` holds a to-many relationship. Each reference is stored as its
-own `Relationship` record instead of in a field on the record, so the list
-has no size limit, edits from two devices merge, and the target never has to
-declare an inverse. A `Relationship` is named by the declaring side, as in
-`"Note.tags"`, with the declaring record's id and then the target's. Its id
-is a stable hash of those three values, so the same link always maps to the
-same record.
+`@References` holds a read-only to-many relationship as the targets' ids, in
+order. Each reference is stored as its own `Relationship` record instead of
+in a field on the record, so the list has no size limit, edits from two
+devices merge, and the target never has to declare an inverse.
 
 ```swift
 struct Note: Codable, Identifiable {
     var id: UUID
     @References(to: Tag.self) var tags: [UUID] = []
 }
-
-note.$tags.append(newTag)               // a new tag, created with the note
-note.tags.append(existing.id)           // an existing tag, linked by id
-note.$tags.inserted                     // [newTag]
-note.$tags.added                        // [newTag.id, existing.id]
-note.$tags.removed                      // ids unlinked since the last save
-note.$tags.links                        // the stored links, sorted by order
 ```
 
-An inverse reads the same links from the other end. Either side can add or
-remove links, and each keeps its own order on the link, `order` for the
-declaring side and `inverseOrder` for the inverse. A link the other side
-created sorts last until this side's next save places it.
-
-```swift
-struct Tag: Codable, Identifiable {
-    var id: UUID
-    @References(from: Note.self, key: "tags") var notes: [UUID] = []
-}
-```
-
-Like `@Reference`, it takes an `action`. With `.deleteSelf`, the record
-holding the property deletes itself when any record at the other end is
-deleted, as with a `CKRecord.Reference`. With `.none`, the default, only the link to a deleted target goes.
-
-```swift
-@References(to: Player.self, action: .deleteSelf) var players: [UUID] = []
-```
+A `Relationship` is named by the declaring side, as in `"Note.tags"`, with
+the declaring record's id and then the target's. Its id is a stable hash of
+those three values, so the same link always maps to the same record. It
+also holds `order`, the link's position in the declaring list, and
+`inverseOrder` for a future inverse. The wrapper stores only the ids and
+encodes them as a plain list. An empty list is left out, and a missing key
+decodes as an empty list.
 
 Use `@Reference` for one target and `@References` for many. One target is a
 field, so it travels with the record and two devices settle on one value.
 Many targets are links, so they merge.
-
-The wrapper tracks changes since the last save, so the next save can create
-the inserted tags and add or delete their links. Each link stores an integer
-`order` that keeps its value while the orders still increase, so a delete
-writes nothing else, an append writes one link, and a move writes only the
-links that no longer sort. A held tag is only created, never updated, so a
-stale copy cannot overwrite an edit.
-
-The wrapper holds the links as they were last saved or fetched. It encodes
-them under `links`, adding `ids` and `inserted` only while there are unsaved
-changes, so a local copy keeps its orders and its changes.
 
 ### Encrypted values
 

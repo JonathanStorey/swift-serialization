@@ -14,10 +14,9 @@ import Foundation
 /// A link is named by the declaring side alone. Linking a note to a tag
 /// through `Note.tags` gives `keyPath == "Note.tags"` and
 /// `references == [note.id, tag.id]`, declaring record first. The target
-/// never needs to declare an inverse, and an inverse it does declare
-/// (`@References(from: Note.self, key: "tags")`) names the same key path, so both sides build
-/// the same link. Adding or removing an inverse never changes a stored
-/// link.
+/// never needs to declare an inverse, and an inverse it declares later names
+/// the same key path, so both sides build the same link. Adding or removing
+/// an inverse never changes a stored link.
 ///
 /// One query, `keyPath == "Note.tags" AND references CONTAINS` a record,
 /// finds every link to it from either side.
@@ -32,7 +31,7 @@ public struct Relationship: Codable, Hashable, Sendable, Identifiable {
     /// because the other side created it, and it sorts last.
     public private(set) var order: Int?
     /// The link's position in the list of `references[1]`, for an inverse
-    /// declared with `@References(from:)`. Each side writes only its own
+    /// declared on the target's side. Each side writes only its own
     /// order, so the two sides never conflict over a field.
     public private(set) var inverseOrder: Int?
 
@@ -67,24 +66,6 @@ public struct Relationship: Codable, Hashable, Sendable, Identifiable {
     /// The id at the other end of the link from `source`.
     package func target(from source: UUID) -> UUID {
         references[0] == source ? references[1] : references[0]
-    }
-
-    /// The link's order in the declaring list, or in the inverse list when
-    /// `inverse` is true.
-    package func order(inverse: Bool) -> Int? {
-        inverse ? inverseOrder : order
-    }
-
-    /// The link with its order in one list replaced, leaving the other
-    /// side's order alone.
-    package func reordered(_ newOrder: Int?, inverse: Bool) -> Relationship {
-        var link = self
-        if inverse {
-            link.inverseOrder = newOrder
-        } else {
-            link.order = newOrder
-        }
-        return link
     }
 }
 

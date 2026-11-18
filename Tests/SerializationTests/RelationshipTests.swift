@@ -35,10 +35,8 @@ import Testing
 
     @Test func keepsBothOrders() {
         let link = Relationship(keyPath: "Note.tags", from: note, to: tag, order: 1, inverseOrder: 7)
-        #expect(link.order(inverse: false) == 1)
-        #expect(link.order(inverse: true) == 7)
-        #expect(link.reordered(4, inverse: true) == Relationship(keyPath: "Note.tags", from: note, to: tag, order: 1, inverseOrder: 4))
-        #expect(link.reordered(nil, inverse: false).order == nil)
+        #expect(link.order == 1)
+        #expect(link.inverseOrder == 7)
     }
 
     @Test func symmetricRelationshipsSortTheirOrdersWithTheirIDs() {
