@@ -250,7 +250,7 @@ created sorts last until this side's next save places it.
 ```swift
 struct Tag: Codable, Identifiable {
     var id: UUID
-    @References(from: \Note.tags) var notes: [UUID] = []
+    @References(from: Note.self, key: "tags") var notes: [UUID] = []
 }
 ```
 

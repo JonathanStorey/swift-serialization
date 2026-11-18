@@ -40,7 +40,7 @@ import Foundation
 /// ```swift
 /// struct Tag: Codable, Identifiable {
 ///     var id: UUID
-///     @References(from: \Note.tags) var notes: [UUID] = []
+///     @References(from: Note.self, key: "tags") var notes: [UUID] = []
 /// }
 /// ```
 ///
@@ -82,11 +82,16 @@ public struct References<Target: Identifiable & Codable> where Target.ID == UUID
         self.action = action
     }
 
-    /// The inverse of the relationship declared at `keyPath`, reading the
-    /// same links from the target's side.
-    public init(wrappedValue: [UUID] = [], from keyPath: KeyPath<Target, [UUID]>, action: RecordRepresentation.Reference.Action = .none) {
+    /// The inverse of the relationship that `declaringType` declares under
+    /// the coding key `key`, reading the same links from the other side.
+    ///
+    /// The key is the coding key the declaring side encodes, which is the
+    /// property name unless its `CodingKeys` rename it. It takes a string
+    /// rather than a key path because a wrapped property's key path cannot
+    /// be turned into its name at run time.
+    public init(wrappedValue: [UUID] = [], from declaringType: Target.Type, key: String, action: RecordRepresentation.Reference.Action = .none) {
         self.init(wrappedValue: wrappedValue, to: Target.self, action: action)
-        inverse = "\(Target.self).\(String(describing: keyPath).split(separator: ".").last ?? "")"
+        inverse = "\(Target.self).\(key)"
     }
 
     /// The wrapper itself, so that `$property.links` and

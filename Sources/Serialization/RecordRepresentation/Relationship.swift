@@ -15,7 +15,7 @@ import Foundation
 /// through `Note.tags` gives `keyPath == "Note.tags"` and
 /// `references == [note.id, tag.id]`, declaring record first. The target
 /// never needs to declare an inverse, and an inverse it does declare
-/// (`@References(from: \Note.tags)`) names the same key path, so both sides build
+/// (`@References(from: Note.self, key: "tags")`) names the same key path, so both sides build
 /// the same link. Adding or removing an inverse never changes a stored
 /// link.
 ///

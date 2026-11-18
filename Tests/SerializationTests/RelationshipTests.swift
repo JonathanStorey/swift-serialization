@@ -42,7 +42,7 @@ import Testing
     }
 
     @Test func symmetricRelationshipsSortTheirOrdersWithTheirIDs() {
-        let link = Relationship(keyPath: "Person.friends", from: tag, to: note, order: 1, inverseOrder: 2)
+        let link = Relationship(keyPath: "Person.friends", from: tag, to: note, order: 1, inverseOrder: 2, symmetric: true)
         #expect(link.references == [note, tag])
         #expect(link.order == 2)
         #expect(link.inverseOrder == 1)

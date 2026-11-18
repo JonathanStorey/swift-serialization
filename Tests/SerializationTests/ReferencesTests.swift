@@ -19,7 +19,7 @@ private struct Post: Codable, Hashable, Identifiable {
 
 private struct Label: Codable, Hashable, Identifiable {
     var id: UUID
-    @References(from: \Post.labels) var posts: [UUID] = []
+    @References(from: Post.self, key: "labels") var posts: [UUID] = []
 }
 
 private struct Cascade: Codable, Hashable {
@@ -101,7 +101,7 @@ private struct Cascade: Codable, Hashable {
         model.tags = [b]
         let changes = model.$tags.changes(keyPath: "Note.tags", from: note)
         #expect(changes.save == [Relationship(keyPath: "Note.tags", from: note, to: b, order: 0)])
-        #expect(changes.delete == [Relationship(keyPath: "Note.tags", from: note, to: a)])
+        #expect(changes.delete == [Relationship(keyPath: "Note.tags", from: note, to: a, order: 0)])
     }
 
     @Test func commitKeepsTheSavedLinks() {
