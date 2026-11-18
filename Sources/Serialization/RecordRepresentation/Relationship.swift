@@ -7,9 +7,9 @@ import Foundation
 /// `references` encode as a reference list, so CloudKit stores them as
 /// references you can follow in the Dashboard.
 ///
-/// Links are created by this package, not by clients, so the initializer
-/// has `package` access: the CloudKit target can create links, and code
-/// outside the package can only read and pass them.
+/// Code that syncs a `@References` list creates the links for it with
+/// ``init(keyPath:from:to:order:inverseOrder:symmetric:)``, and reads them
+/// back into a list with `References.init(_:from:action:)`.
 ///
 /// A link is named by the declaring side alone. Linking a note to a tag
 /// through `Note.tags` gives `keyPath == "Note.tags"` and
@@ -41,7 +41,7 @@ public struct Relationship: Codable, Hashable, Sendable, Identifiable {
     /// A symmetric relationship is its own inverse, like `Person.friends`.
     /// It has no declaring side, so its ids are sorted, with their orders,
     /// and the link is the same whichever record creates it.
-    package init(keyPath: String, from source: UUID, to target: UUID, order: Int? = nil, inverseOrder: Int? = nil, symmetric: Bool = false) {
+    public init(keyPath: String, from source: UUID, to target: UUID, order: Int? = nil, inverseOrder: Int? = nil, symmetric: Bool = false) {
         self.keyPath = keyPath
         if symmetric && target.uuidString < source.uuidString {
             _references = Related([target, source])
@@ -64,7 +64,7 @@ public struct Relationship: Codable, Hashable, Sendable, Identifiable {
     }
 
     /// The id at the other end of the link from `source`.
-    package func target(from source: UUID) -> UUID {
+    public func target(from source: UUID) -> UUID {
         references[0] == source ? references[1] : references[0]
     }
 }

@@ -1,7 +1,5 @@
-/// A CloudKit record as a value, independent of the CloudKit framework.
-///
-/// For now this is the namespace for field values that need a type of their
-/// own, such as ``Reference``.
+/// The namespace for CloudKit record values that need a type of their own,
+/// such as ``Reference``, independent of the CloudKit framework.
 public enum RecordRepresentation {}
 
 extension RecordRepresentation {

@@ -41,49 +41,43 @@ import Foundation
 /// holding the property deletes itself when any target is deleted. Swift
 /// does not pass the attribute's arguments to `init(from:)`, so a decoded
 /// list takes the action of its first element, an empty list decodes with
-/// `.none`, and a decoded list does not know its storage until a schema
-/// supplies it. Equality and hashing compare the ids and the action only.
+/// `.none`, and a decoded list's ``storage`` is `nil`. Equality and hashing compare the ids and the action only.
 @propertyWrapper
 public struct References<Target: Identifiable>: Sendable where Target.ID == UUID {
     public let wrappedValue: [UUID]
     public let action: RecordRepresentation.Reference.Action
 
-    /// How the list is stored, or `nil` when the wrapper was decoded.
-    package let storage: Storage?
+    /// How the list is stored, or `nil` when the wrapper was decoded,
+    /// because Swift does not pass the attribute's arguments to
+    /// `init(from:)`.
+    public let storage: Storage?
 
-    package enum Storage: Equatable, Sendable {
+    /// Finds an inverse's link name. Only the inverse initializer sets it,
+    /// because only it knows the declaring type is `Decodable`.
+    private let inverseName: (@Sendable () throws -> String)?
+
+    /// Where a list's references are stored.
+    public enum Storage: Hashable, Sendable {
         /// One reference list field on the record.
         case field
         /// ``Relationship`` records named by this side.
         case links
-        /// ``Relationship`` records named by the declaring property. `name`
-        /// finds the link name, which needs the declaring type to be
-        /// `Decodable`, as the inverse initializer requires.
-        case inverse(KeyPath<Target, [UUID]> & Sendable, name: @Sendable () throws -> String)
-
-        package static func == (lhs: Storage, rhs: Storage) -> Bool {
-            switch (lhs, rhs) {
-            case (.field, .field), (.links, .links): true
-            case let (.inverse(lhs, _), .inverse(rhs, _)): lhs == rhs
-            default: false
-            }
-        }
+        /// ``Relationship`` records named by the declaring property.
+        case inverse
     }
 
     /// The links an inverse reads, as in `"Note.tags"`, or `nil` when the
     /// list is not an inverse. It decodes a placeholder of the declaring
     /// type on each call, so store it when you need it repeatedly.
-    package var inverse: String? {
-        get throws {
-            guard case .inverse(_, let name) = storage else { return nil }
-            return try name()
-        }
+    public var inverse: String? {
+        get throws { try inverseName?() }
     }
 
-    fileprivate init(wrappedValue: [UUID], action: RecordRepresentation.Reference.Action, storage: Storage?) {
+    fileprivate init(wrappedValue: [UUID], action: RecordRepresentation.Reference.Action, storage: Storage?, inverseName: (@Sendable () throws -> String)? = nil) {
         self.wrappedValue = wrappedValue
         self.action = action
         self.storage = storage
+        self.inverseName = inverseName
     }
 
     /// A list stored as one reference list field on the record.
@@ -101,7 +95,7 @@ public struct References<Target: Identifiable>: Sendable where Target.ID == UUID
     /// The inverse of the list at `declaringProperty`, reading the same
     /// ``Relationship`` records from the other side.
     public init(wrappedValue: [UUID] = [], from declaringProperty: KeyPath<Target, [UUID]> & Sendable, action: RecordRepresentation.Reference.Action = .none) where Target: Decodable {
-        self.init(wrappedValue: wrappedValue, action: action, storage: .inverse(declaringProperty, name: { try RecordSchema.name(of: declaringProperty) }))
+        self.init(wrappedValue: wrappedValue, action: action, storage: .inverse, inverseName: { try RecordSchema.name(of: declaringProperty) })
     }
 }
 
@@ -120,7 +114,7 @@ extension References {
     /// The other ends of the links to the record `source`, sorted by its
     /// side's order, `order` when it declares them and `inverseOrder` when
     /// it is an inverse, with unplaced links last.
-    package init(_ links: [Relationship], from source: UUID, action: RecordRepresentation.Reference.Action = .none) {
+    public init(_ links: [Relationship], from source: UUID, action: RecordRepresentation.Reference.Action = .none) {
         let order = { (link: Relationship) in (link.references[0] == source ? link.order : link.inverseOrder) ?? .max }
         let sorted = links.sorted { (order($0), $0.id.uuidString) < (order($1), $1.id.uuidString) }
         self.init(wrappedValue: sorted.map { $0.target(from: source) }, action: action, storage: nil)

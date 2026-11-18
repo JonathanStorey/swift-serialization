@@ -94,7 +94,7 @@ private struct Match: Codable, Hashable {
     @Test func initializerPicksTheStorage() {
         #expect(Folder().attachmentsStorage == .field)
         #expect(Note().tagsStorage == .links)
-        #expect(Label().postsStorage == .inverse(\Post.labels, name: { "" }))
+        #expect(Label().postsStorage == .inverse)
     }
 
     @Test func inverseNamesTheDeclaringCodingKey() throws {
