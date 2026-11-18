@@ -252,7 +252,8 @@ the declaring record's id and then the target's. Its id is a stable hash of
 those three values, so the same link always maps to the same record. It
 also holds `order`, the link's position in the declaring list, and
 `inverseOrder`, its position in the inverse's list, and each side sorts by
-its own.
+its own. A new link is unplaced, and `link[orderIn: record]` places it in
+either end's list without knowing which side declared it.
 
 Either way the wrapper encodes each id as a `RecordRepresentation.Reference`
 carrying the action, which a decoded list takes from its first element.

@@ -67,6 +67,13 @@ private struct Match: Codable, Hashable {
     private let b = UUID(uuidString: "00000000-0000-0000-0000-0000000000B2")!
     private let c = UUID(uuidString: "00000000-0000-0000-0000-0000000000C3")!
 
+    private func link(_ keyPath: String, from source: UUID, to target: UUID, order: Int? = nil, inverseOrder: Int? = nil) -> Relationship {
+        var link = Relationship(keyPath: keyPath, from: source, to: target)
+        link.order = order
+        link.inverseOrder = inverseOrder
+        return link
+    }
+
     private func json(_ value: some Encodable) throws -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
@@ -116,8 +123,8 @@ private struct Match: Codable, Hashable {
 
     @Test func inverseSortsByInverseOrder() {
         let links = [
-            Relationship(keyPath: "Post.labels", from: a, to: note, order: 0, inverseOrder: 2),
-            Relationship(keyPath: "Post.labels", from: b, to: note, order: 5, inverseOrder: 1),
+            link("Post.labels", from: a, to: note, order: 0, inverseOrder: 2),
+            link("Post.labels", from: b, to: note, order: 5, inverseOrder: 1),
         ]
         #expect(References<Post>(links, from: note).wrappedValue == [b, a])
     }
@@ -139,9 +146,9 @@ private struct Match: Codable, Hashable {
 
     @Test func fetchedLinksSortByOrderWithUnplacedLinksLast() {
         let links = [
-            Relationship(keyPath: "Note.tags", from: note, to: a, order: 4),
-            Relationship(keyPath: "Note.tags", from: note, to: c, inverseOrder: 0),
-            Relationship(keyPath: "Note.tags", from: note, to: b, order: 0),
+            link("Note.tags", from: note, to: a, order: 4),
+            link("Note.tags", from: note, to: c, inverseOrder: 0),
+            link("Note.tags", from: note, to: b, order: 0),
         ]
         let model = References<Tag>(links, from: note, action: .deleteSelf)
         #expect(model.wrappedValue == [b, a, c])

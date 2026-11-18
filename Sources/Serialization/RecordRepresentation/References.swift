@@ -115,7 +115,7 @@ extension References {
     /// side's order, `order` when it declares them and `inverseOrder` when
     /// it is an inverse, with unplaced links last.
     public init(_ links: [Relationship], from source: UUID, action: RecordRepresentation.Reference.Action = .none) {
-        let order = { (link: Relationship) in (link.references[0] == source ? link.order : link.inverseOrder) ?? .max }
+        let order = { (link: Relationship) in link[orderIn: source] ?? .max }
         let sorted = links.sorted { (order($0), $0.id.uuidString) < (order($1), $1.id.uuidString) }
         self.init(wrappedValue: sorted.map { $0.target(from: source) }, action: action, storage: nil)
     }

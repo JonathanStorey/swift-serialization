@@ -8,7 +8,8 @@ import Foundation
 /// references you can follow in the Dashboard.
 ///
 /// Code that syncs a `@References` list creates the links for it with
-/// ``init(keyPath:from:to:order:inverseOrder:symmetric:)``, and reads them
+/// ``init(keyPath:from:to:symmetric:)``, places them with
+/// ``subscript(orderIn:)``, and reads them
 /// back into a list with `References.init(_:from:action:)`.
 ///
 /// A link is named by the declaring side alone. Linking a note to a tag
@@ -29,28 +30,37 @@ public struct Relationship: Codable, Hashable, Sendable, Identifiable {
     /// record. Orders only need to increase, so deleting a link never
     /// renumbers the others. `nil` means the link has not been placed yet,
     /// because the other side created it, and it sorts last.
-    public private(set) var order: Int?
+    public var order: Int?
     /// The link's position in the list of `references[1]`, for an inverse
     /// declared on the target's side. Each side writes only its own
     /// order, so the two sides never conflict over a field.
-    public private(set) var inverseOrder: Int?
+    public var inverseOrder: Int?
 
-    /// A link from `source` to `target` through `keyPath`, at `order` in
-    /// the source's list and `inverseOrder` in the target's.
+    /// A link from `source` to `target` through `keyPath`, not yet placed
+    /// in either list.
     ///
     /// A symmetric relationship is its own inverse, like `Person.friends`.
-    /// It has no declaring side, so its ids are sorted, with their orders,
-    /// and the link is the same whichever record creates it.
-    public init(keyPath: String, from source: UUID, to target: UUID, order: Int? = nil, inverseOrder: Int? = nil, symmetric: Bool = false) {
+    /// It has no declaring side, so its ids are sorted and the link is the
+    /// same whichever record creates it.
+    public init(keyPath: String, from source: UUID, to target: UUID, symmetric: Bool = false) {
         self.keyPath = keyPath
-        if symmetric && target.uuidString < source.uuidString {
-            _references = Related([target, source])
-            self.order = inverseOrder
-            self.inverseOrder = order
-        } else {
-            _references = Related([source, target])
-            self.order = order
-            self.inverseOrder = inverseOrder
+        let swapped = symmetric && target.uuidString < source.uuidString
+        _references = Related(swapped ? [target, source] : [source, target])
+    }
+
+    /// The link's position in the list of `record`, one of its two ends:
+    /// ``order`` for `references[0]` and ``inverseOrder`` for
+    /// `references[1]`. Use it to place a link without knowing which side
+    /// declared it, as a symmetric link requires.
+    ///
+    /// ```swift
+    /// var link = Relationship(keyPath: "Note.tags", from: note, to: tag)
+    /// link[orderIn: note] = 3
+    /// ```
+    public subscript(orderIn record: UUID) -> Int? {
+        get { references[0] == record ? order : inverseOrder }
+        set {
+            if references[0] == record { order = newValue } else { inverseOrder = newValue }
         }
     }
 

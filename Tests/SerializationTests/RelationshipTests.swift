@@ -16,7 +16,8 @@ import Testing
     }
 
     @Test func orderIsNotPartOfTheID() {
-        let link = Relationship(keyPath: "Note.tags", from: note, to: tag, order: 3)
+        var link = Relationship(keyPath: "Note.tags", from: note, to: tag)
+        link.order = 3
         #expect(link.id == Relationship(keyPath: "Note.tags", from: note, to: tag).id)
         #expect(link != Relationship(keyPath: "Note.tags", from: note, to: tag))
     }
@@ -33,14 +34,20 @@ import Testing
         #expect(Relationship(keyPath: "Person.follows", from: tag, to: note) != Relationship(keyPath: "Person.follows", from: note, to: tag))
     }
 
-    @Test func keepsBothOrders() {
-        let link = Relationship(keyPath: "Note.tags", from: note, to: tag, order: 1, inverseOrder: 7)
+    @Test func placesEachSideByItsRecord() {
+        var link = Relationship(keyPath: "Note.tags", from: note, to: tag)
+        link[orderIn: note] = 1
+        link[orderIn: tag] = 7
         #expect(link.order == 1)
         #expect(link.inverseOrder == 7)
+        #expect(link[orderIn: note] == 1)
+        #expect(link[orderIn: tag] == 7)
     }
 
-    @Test func symmetricRelationshipsSortTheirOrdersWithTheirIDs() {
-        let link = Relationship(keyPath: "Person.friends", from: tag, to: note, order: 1, inverseOrder: 2, symmetric: true)
+    @Test func symmetricRelationshipsPlaceByRecordWhateverTheSort() {
+        var link = Relationship(keyPath: "Person.friends", from: tag, to: note, symmetric: true)
+        link[orderIn: tag] = 1
+        link[orderIn: note] = 2
         #expect(link.references == [note, tag])
         #expect(link.order == 2)
         #expect(link.inverseOrder == 1)
@@ -63,7 +70,8 @@ import Testing
     }
 
     @Test func encodesLikeAModel() throws {
-        let link = Relationship(keyPath: "Note.tags", from: note, to: tag, order: 2)
+        var link = Relationship(keyPath: "Note.tags", from: note, to: tag)
+        link.order = 2
         let json = try JSONRepresentation(link)
         #expect(json["id"] == nil)
         #expect(json["keyPath"] == "Note.tags")
