@@ -262,25 +262,25 @@ Many targets are links, so they merge.
 
 ### Locations
 
-`@Location` marks a location property. `Location` holds every value a
-`CLLocation` saves to a CloudKit record: coordinate, altitude, accuracies,
-course, speed and timestamp. It is its own wrapped value, so the property
-reads and writes a plain `Location`, and on Apple platforms its projected
-value is a `CLLocation`.
+`Location` holds every value a `CLLocation` saves to a CloudKit record:
+coordinate, altitude, accuracies, course, speed and timestamp. It is a plain
+`Codable` value, so optional locations and lists of locations work like any
+other property, and on Apple platforms it converts to and from `CLLocation`.
 
 ```swift
 struct Place: Codable {
-    @Location var home: Location
+    var home: Location?
+    var route: [Location] = []
 }
 
-place.home.latitude                     // 41.88
-place.$home                             // CLLocation
+place.home?.latitude                    // 41.88
+place.home?.clLocation                  // CLLocation
 Location(clLocation)                    // back from CoreLocation
 ```
 
 Unmeasured values follow CoreLocation: a negative accuracy, course or speed
 means the value is invalid. CoreLocation exists only on Apple platforms, so
-on Linux a `Location` has no projected value.
+on Linux a `Location` has no `clLocation`.
 
 ### Timestamps
 

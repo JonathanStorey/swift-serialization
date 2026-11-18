@@ -4,26 +4,26 @@ import CoreLocation
 #endif
 
 /// A location as CloudKit stores it, with every value a `CLLocation` saves
-/// to a record, and the property wrapper that marks a location property.
+/// to a record.
 ///
 /// ```swift
 /// struct Place: Codable {
-///     @Location var home: Location
+///     var home: Location?
+///     var route: [Location] = []
 /// }
 ///
-/// place.home.latitude              // 41.88
-/// place.$home                      // CLLocation, on Apple platforms
+/// place.home?.latitude             // 41.88
+/// place.home?.clLocation           // CLLocation, on Apple platforms
 /// ```
 ///
-/// `Location` is its own wrapped value, so the property reads and writes a
-/// plain `Location` and the wrapper adds only the projected `CLLocation`.
-/// It is `Codable` by synthesis, so JSON holds every value and a record
-/// encoder can recognize a location by its type. CoreLocation exists only
-/// on Apple platforms, so on Linux a `Location` has no projected value.
+/// It is a plain value, so optional locations and lists of locations work
+/// like any other property. It is `Codable` by synthesis, so JSON holds
+/// every value and a record encoder can recognize a location by its type.
+/// CoreLocation exists only on Apple platforms, so on Linux a `Location` has
+/// no `clLocation`.
 ///
 /// Values a location did not measure use CoreLocation's conventions: a
 /// negative accuracy, course or speed means the value is invalid.
-@propertyWrapper
 public struct Location: Codable, Hashable, Sendable {
     public var latitude: Double
     public var longitude: Double
@@ -69,31 +69,19 @@ public struct Location: Codable, Hashable, Sendable {
         self.speedAccuracy = speedAccuracy
         self.timestamp = timestamp
     }
+}
 
-    public init(wrappedValue: Location) {
-        self = wrappedValue
-    }
-
-    /// The location itself, so the property reads and writes a `Location`.
-    public var wrappedValue: Location {
-        get { self }
-        set { self = newValue }
-    }
-
-    #if canImport(CoreLocation)
+#if canImport(CoreLocation)
+extension Location {
     /// The location as a `CLLocation`, for CoreLocation and MapKit.
-    public var projectedValue: CLLocation {
+    public var clLocation: CLLocation {
         let coordinate = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         if #available(macOS 10.15.4, iOS 13.4, tvOS 13.4, watchOS 6.2, *) {
             return CLLocation(coordinate: coordinate, altitude: altitude, horizontalAccuracy: horizontalAccuracy, verticalAccuracy: verticalAccuracy, course: course, courseAccuracy: courseAccuracy, speed: speed, speedAccuracy: speedAccuracy, timestamp: timestamp)
         }
         return CLLocation(coordinate: coordinate, altitude: altitude, horizontalAccuracy: horizontalAccuracy, verticalAccuracy: verticalAccuracy, course: course, speed: speed, timestamp: timestamp)
     }
-    #endif
-}
 
-#if canImport(CoreLocation)
-extension Location {
     /// The values of a `CLLocation`.
     public init(_ location: CLLocation) {
         var courseAccuracy = -1.0

@@ -6,7 +6,8 @@ import CoreLocation
 #endif
 
 private struct Place: Codable, Hashable {
-    @Location var home: Location
+    var home: Location?
+    var route: [Location] = []
 }
 
 @Suite struct LocationTests {
@@ -19,11 +20,10 @@ private struct Place: Codable, Hashable {
         #expect([location.verticalAccuracy, location.course, location.courseAccuracy, location.speed, location.speedAccuracy] == [-1, -1, -1, -1, -1])
     }
 
-    @Test func propertyReadsAndWritesALocation() {
-        var place = Place(home: chicago)
-        #expect(place.home == chicago)
-        place.home.latitude = 42
-        #expect(place.home.latitude == 42)
+    @Test func worksAsAnOptionalAndInAList() throws {
+        #expect(try JSONEncoder().encode(Place()) == Data(#"{"route":[]}"#.utf8))
+        let place = Place(home: nil, route: [chicago, chicago])
+        #expect(try JSONDecoder().decode(Place.self, from: JSONEncoder().encode(place)) == place)
     }
 
     @Test func encodesEveryValue() throws {
@@ -41,7 +41,7 @@ private struct Place: Codable, Hashable {
 
     #if canImport(CoreLocation)
     @Test func projectsACLLocation() {
-        let location = Place(home: chicago).$home
+        let location = chicago.clLocation
         #expect(location.coordinate.latitude == 41.88)
         #expect(location.coordinate.longitude == -87.63)
         #expect(location.altitude == 181)
@@ -51,7 +51,7 @@ private struct Place: Codable, Hashable {
     }
 
     @Test func roundTripsThroughCLLocation() {
-        #expect(Location(Place(home: chicago).$home) == chicago)
+        #expect(Location(chicago.clLocation) == chicago)
     }
     #endif
 }
