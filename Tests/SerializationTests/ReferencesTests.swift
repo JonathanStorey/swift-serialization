@@ -10,6 +10,10 @@ private struct Note: Codable, Hashable {
     @References(to: Tag.self) var tags: [UUID] = []
 }
 
+private struct Match: Codable, Hashable {
+    @References(to: Tag.self, action: .deleteSelf) var tags: [UUID] = []
+}
+
 @Suite struct ReferencesTests {
     private let note = UUID(uuidString: "00000000-0000-0000-0000-00000000000A")!
     private let a = UUID(uuidString: "00000000-0000-0000-0000-0000000000A1")!
@@ -27,8 +31,21 @@ private struct Note: Codable, Hashable {
         #expect(Note().tags == [])
     }
 
-    @Test func encodesTheIDs() throws {
-        #expect(try json(Note(tags: [a])) == #"{"tags":["00000000-0000-0000-0000-0000000000A1"]}"#)
+    @Test func encodesEachReferenceWithTheAction() throws {
+        #expect(try json(Note(tags: [a])) == #"{"tags":[{"action":"none","recordName":"00000000-0000-0000-0000-0000000000A1"}]}"#)
+        #expect(try json(Match(tags: [a])) == #"{"tags":[{"action":"deleteSelf","recordName":"00000000-0000-0000-0000-0000000000A1"}]}"#)
+    }
+
+    @Test func keepsTheAction() throws {
+        let model = Match(tags: [a, b])
+        let decoded = try JSONDecoder().decode(Match.self, from: JSONEncoder().encode(model))
+        #expect(decoded == model)
+        #expect(decoded._tags.action == .deleteSelf)
+        #expect(try JSONDecoder().decode(Match.self, from: Data("{}".utf8))._tags.action == .none)
+    }
+
+    @Test func rejectsARecordNameThatIsNotAUUID() {
+        #expect(throws: DecodingError.self) { try JSONDecoder().decode(Note.self, from: Data(#"{"tags":[{"recordName":"42","action":"none"}]}"#.utf8)) }
     }
 
     @Test func leavesOutAnEmptyList() throws {
@@ -48,6 +65,8 @@ private struct Note: Codable, Hashable {
             Relationship(keyPath: "Note.tags", from: note, to: c, inverseOrder: 0),
             Relationship(keyPath: "Note.tags", from: note, to: b, order: 0),
         ]
-        #expect(References<Tag>(links, from: note).wrappedValue == [b, a, c])
+        let model = References<Tag>(links, from: note, action: .deleteSelf)
+        #expect(model.wrappedValue == [b, a, c])
+        #expect(model.action == .deleteSelf)
     }
 }

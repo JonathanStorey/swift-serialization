@@ -6,7 +6,7 @@ import Foundation
 /// ```swift
 /// struct Note: Codable, Identifiable {
 ///     var id: UUID
-///     @Reference(to: Folder.self) var folder: Folder.ID? = nil
+///     @Reference(to: Folder.self, action: .deleteSelf) var folder: Folder.ID? = nil
 /// }
 ///
 /// let note = Note(id: UUID(), folder: folder.id)
@@ -14,20 +14,28 @@ import Foundation
 /// ```
 ///
 /// The property is set when the model is created or decoded and cannot be
-/// assigned afterwards. The wrapper stores only the id. It encodes a
-/// ``RecordRepresentation/Reference``, so a record encoder can tell a
-/// reference from a plain `UUID`. A `nil` reference is left out of a keyed
+/// assigned afterwards. The wrapper stores only the id and its action. It
+/// encodes a ``RecordRepresentation/Reference``, so a record encoder can
+/// tell a reference from a plain `UUID` and the action travels with it. A `nil` reference is left out of a keyed
 /// container, and a missing key decodes as `nil`.
 ///
 /// The target's `id` must be a `UUID`, and the record name is its
 /// `uuidString`. That is always a valid CloudKit record name and reads back
 /// exactly, which a `String` id cannot promise.
+///
+/// The action follows `CKRecord.Reference`: with `.deleteSelf`, the record
+/// holding the property deletes itself when the target is deleted. A
+/// decoded reference keeps the action it was saved with, and a decoded `nil`
+/// reference has the action `.none`, because Swift does not pass the
+/// attribute's arguments to `init(from:)`.
 @propertyWrapper
 public struct Reference<Target: Identifiable>: Hashable, Sendable where Target.ID == UUID {
     public let wrappedValue: UUID?
+    public let action: RecordRepresentation.Reference.Action
 
-    public init(wrappedValue: UUID? = nil, to target: Target.Type) {
+    public init(wrappedValue: UUID? = nil, to target: Target.Type, action: RecordRepresentation.Reference.Action = .none) {
         self.wrappedValue = wrappedValue
+        self.action = action
     }
 }
 
@@ -42,13 +50,13 @@ extension Reference: Codable {
         guard let id = UUID(uuidString: reference.recordName) else {
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Record name \"\(reference.recordName)\" is not a UUID.")
         }
-        self.init(wrappedValue: id, to: Target.self)
+        self.init(wrappedValue: id, to: Target.self, action: reference.action)
     }
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
         if let wrappedValue {
-            try container.encode(RecordRepresentation.Reference(recordName: wrappedValue.uuidString))
+            try container.encode(RecordRepresentation.Reference(recordName: wrappedValue.uuidString, action: action))
         } else {
             try container.encodeNil()
         }

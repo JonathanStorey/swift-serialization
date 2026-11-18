@@ -13,34 +13,52 @@ import Foundation
 ///
 /// The property holds the targets' ids in order. It is set when the model
 /// is created or decoded and cannot be assigned afterwards. The wrapper
-/// stores only the ids. An empty list is left out of a keyed container, and
-/// a missing key decodes as an empty list.
+/// stores only the ids and its action, and encodes each id as a
+/// ``RecordRepresentation/Reference`` carrying the action. An empty list is
+/// left out of a keyed container, and a missing key decodes as an empty
+/// list.
+///
+/// The action follows `CKRecord.Reference`: with `.deleteSelf`, the record
+/// holding the property deletes itself when any target is deleted. A
+/// decoded list takes the action of its first element, and an empty list
+/// decodes with `.none`, because Swift does not pass the attribute's
+/// arguments to `init(from:)`.
 @propertyWrapper
 public struct References<Target: Identifiable>: Hashable, Sendable where Target.ID == UUID {
     public let wrappedValue: [UUID]
+    public let action: RecordRepresentation.Reference.Action
 
-    public init(wrappedValue: [UUID] = [], to target: Target.Type) {
+    public init(wrappedValue: [UUID] = [], to target: Target.Type, action: RecordRepresentation.Reference.Action = .none) {
         self.wrappedValue = wrappedValue
+        self.action = action
     }
 }
 
 extension References {
     /// The targets of the links that the record `source` declares, sorted by
     /// order, with unplaced links last.
-    package init(_ links: [Relationship], from source: UUID) {
+    package init(_ links: [Relationship], from source: UUID, action: RecordRepresentation.Reference.Action = .none) {
         let sorted = links.sorted { ($0.order ?? .max, $0.id.uuidString) < ($1.order ?? .max, $1.id.uuidString) }
-        self.init(wrappedValue: sorted.map { $0.target(from: source) }, to: Target.self)
+        self.init(wrappedValue: sorted.map { $0.target(from: source) }, to: Target.self, action: action)
     }
 }
 
 extension References: Codable {
     public init(from decoder: any Decoder) throws {
-        self.init(wrappedValue: try decoder.singleValueContainer().decode([UUID].self), to: Target.self)
+        let container = try decoder.singleValueContainer()
+        let references = try container.decode([RecordRepresentation.Reference].self)
+        let ids = try references.map { reference in
+            guard let id = UUID(uuidString: reference.recordName) else {
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Record name \"\(reference.recordName)\" is not a UUID.")
+            }
+            return id
+        }
+        self.init(wrappedValue: ids, to: Target.self, action: references.first?.action ?? .none)
     }
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
-        try container.encode(wrappedValue)
+        try container.encode(wrappedValue.map { RecordRepresentation.Reference(recordName: $0.uuidString, action: action) })
     }
 }
 

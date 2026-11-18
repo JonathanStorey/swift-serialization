@@ -199,7 +199,7 @@ struct Folder: Codable, Identifiable {
 
 struct Note: Codable, Identifiable {
     var id: UUID
-    @Reference(to: Folder.self) var folder: Folder.ID? = nil
+    @Reference(to: Folder.self, action: .deleteSelf) var folder: Folder.ID? = nil
 }
 
 let note = Note(id: UUID(), folder: folder.id)
@@ -207,12 +207,18 @@ note.folder                      // Optional(folder.id)
 ```
 
 The property is set when the model is created or decoded, and the wrapper
-stores only the id. It encodes a `RecordRepresentation.Reference`, so
-`JSONEncoder` writes
-`{"folder":{"action":"none","recordName":"..."},"id":"..."}`. A `nil`
+stores only the id and its action. It encodes a
+`RecordRepresentation.Reference`, so `JSONEncoder` writes
+`{"folder":{"action":"deleteSelf","recordName":"..."},"id":"..."}`. A `nil`
 reference is left out, and a missing key decodes as `nil`. The target's `id`
 must be a `UUID`, and the record name is its `uuidString`, which is always a
 valid CloudKit record name and reads back exactly.
+
+The action follows `CKRecord.Reference`. With `.deleteSelf`, the record
+holding the property deletes itself when the target is deleted. A decoded
+reference keeps the action it was saved with. Swift does not pass the
+attribute's arguments to `init(from:)`, so a reference decoded as `nil` has
+the action `.none`.
 
 ### Reference lists
 
@@ -225,6 +231,7 @@ devices merge, and the target never has to declare an inverse.
 struct Note: Codable, Identifiable {
     var id: UUID
     @References(to: Tag.self) var tags: [UUID] = []
+    @References(to: Player.self, action: .deleteSelf) var players: [UUID] = []
 }
 ```
 
@@ -233,7 +240,10 @@ the declaring record's id and then the target's. Its id is a stable hash of
 those three values, so the same link always maps to the same record. It
 also holds `order`, the link's position in the declaring list, and
 `inverseOrder` for a future inverse. The wrapper stores only the ids and
-encodes them as a plain list. An empty list is left out, and a missing key
+its action, and encodes each id as a `RecordRepresentation.Reference`
+carrying the action, which a decoded list takes from its first element.
+With `.deleteSelf`, the record holding the property deletes itself when any
+target is deleted. An empty list is left out, and a missing key
 decodes as an empty list.
 
 Use `@Reference` for one target and `@References` for many. One target is a
