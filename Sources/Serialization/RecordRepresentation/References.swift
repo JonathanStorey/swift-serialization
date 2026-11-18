@@ -18,6 +18,17 @@ import Foundation
 /// left out of a keyed container, and a missing key decodes as an empty
 /// list.
 ///
+/// An inverse reads the same links from the other end. It names the
+/// declaring type and the coding key that side encodes, so its links are
+/// the declaring side's links:
+///
+/// ```swift
+/// struct Tag: Codable, Identifiable {
+///     var id: UUID
+///     @References(from: Note.self, key: "tags") var notes: [UUID] = []
+/// }
+/// ```
+///
 /// The action follows `CKRecord.Reference`: with `.deleteSelf`, the record
 /// holding the property deletes itself when any target is deleted. A
 /// decoded list takes the action of its first element, and an empty list
@@ -28,17 +39,36 @@ public struct References<Target: Identifiable>: Hashable, Sendable where Target.
     public let wrappedValue: [UUID]
     public let action: RecordRepresentation.Reference.Action
 
+    /// The declaring key path for an inverse, as in `"Note.tags"`, or `nil`
+    /// on the declaring side. It is not encoded, so a decoded wrapper has
+    /// `nil` until the schema supplies it.
+    package let inverse: String?
+
     public init(wrappedValue: [UUID] = [], to target: Target.Type, action: RecordRepresentation.Reference.Action = .none) {
         self.wrappedValue = wrappedValue
         self.action = action
+        inverse = nil
+    }
+
+    /// The inverse of the relationship that `declaringType` declares under
+    /// the coding key `key`, reading the same links from the other side.
+    ///
+    /// The key is the coding key the declaring side encodes, which is the
+    /// property name unless its `CodingKeys` rename it.
+    public init(wrappedValue: [UUID] = [], from declaringType: Target.Type, key: String, action: RecordRepresentation.Reference.Action = .none) {
+        self.wrappedValue = wrappedValue
+        self.action = action
+        inverse = "\(Target.self).\(key)"
     }
 }
 
 extension References {
-    /// The targets of the links that the record `source` declares, sorted by
-    /// order, with unplaced links last.
+    /// The other ends of the links to the record `source`, sorted by its
+    /// side's order, `order` when it declares them and `inverseOrder` when
+    /// it is an inverse, with unplaced links last.
     package init(_ links: [Relationship], from source: UUID, action: RecordRepresentation.Reference.Action = .none) {
-        let sorted = links.sorted { ($0.order ?? .max, $0.id.uuidString) < ($1.order ?? .max, $1.id.uuidString) }
+        let order = { (link: Relationship) in (link.references[0] == source ? link.order : link.inverseOrder) ?? .max }
+        let sorted = links.sorted { (order($0), $0.id.uuidString) < (order($1), $1.id.uuidString) }
         self.init(wrappedValue: sorted.map { $0.target(from: source) }, to: Target.self, action: action)
     }
 }

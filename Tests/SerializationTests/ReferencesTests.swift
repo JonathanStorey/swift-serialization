@@ -10,6 +10,14 @@ private struct Note: Codable, Hashable {
     @References(to: Tag.self) var tags: [UUID] = []
 }
 
+private struct Post: Codable, Identifiable {
+    var id: UUID
+}
+
+private struct Label: Codable, Hashable {
+    @References(from: Post.self, key: "labels") var posts: [UUID] = []
+}
+
 private struct Match: Codable, Hashable {
     @References(to: Tag.self, action: .deleteSelf) var tags: [UUID] = []
 }
@@ -42,6 +50,19 @@ private struct Match: Codable, Hashable {
         #expect(decoded == model)
         #expect(decoded._tags.action == .deleteSelf)
         #expect(try JSONDecoder().decode(Match.self, from: Data("{}".utf8))._tags.action == .none)
+    }
+
+    @Test func inverseNamesTheDeclaringKeyPath() {
+        #expect(Label()._posts.inverse == "Post.labels")
+        #expect(Note()._tags.inverse == nil)
+    }
+
+    @Test func inverseSortsByInverseOrder() {
+        let links = [
+            Relationship(keyPath: "Post.labels", from: a, to: note, order: 0, inverseOrder: 2),
+            Relationship(keyPath: "Post.labels", from: b, to: note, order: 5, inverseOrder: 1),
+        ]
+        #expect(References<Post>(links, from: note).wrappedValue == [b, a])
     }
 
     @Test func rejectsARecordNameThatIsNotAUUID() {

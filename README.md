@@ -239,12 +239,22 @@ A `Relationship` is named by the declaring side, as in `"Note.tags"`, with
 the declaring record's id and then the target's. Its id is a stable hash of
 those three values, so the same link always maps to the same record. It
 also holds `order`, the link's position in the declaring list, and
-`inverseOrder` for a future inverse. The wrapper stores only the ids and
+`inverseOrder`, its position in an inverse's list. The wrapper stores only the ids and
 its action, and encodes each id as a `RecordRepresentation.Reference`
 carrying the action, which a decoded list takes from its first element.
 With `.deleteSelf`, the record holding the property deletes itself when any
 target is deleted. An empty list is left out, and a missing key
 decodes as an empty list.
+
+An inverse reads the same links from the other end. It names the declaring
+type and the coding key that side encodes, and sorts by `inverseOrder`.
+
+```swift
+struct Tag: Codable, Identifiable {
+    var id: UUID
+    @References(from: Note.self, key: "tags") var notes: [UUID] = []
+}
+```
 
 Use `@Reference` for one target and `@References` for many. One target is a
 field, so it travels with the record and two devices settle on one value.
