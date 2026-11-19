@@ -14,9 +14,10 @@ extension RecordSchema {
     /// The record type must match, every required field must be present,
     /// and each field's value must have the field's CloudKit type, in
     /// `encryptedValues` when the field is encrypted. A `String` or `Int`
-    /// raw-value enum must hold one of its cases, and a `Bool` must be 0 or
-    /// 1. Fields the type does not declare are ignored. A nested value
-    /// stored as bytes is checked only as `Data`.
+    /// raw-value enum must hold one of its cases, an integer must lie within
+    /// its type's bounds, a `UUID` or `URL` string must parse, and a `Bool`
+    /// must be 0 or 1. Fields the type does not declare are ignored. A
+    /// nested value stored as bytes is checked only as `Data`.
     @available(macOS 12, iOS 15, tvOS 15, watchOS 8, *)
     public func contains(_ record: CKRecord) -> Bool {
         record.recordType == recordType && fields.allSatisfy { key, field in
@@ -33,13 +34,14 @@ private extension RecordSchema.FieldType {
         switch self {
         case .string:
             guard let text = value as? String else { return false }
-            if case .string(let cases?) = schema { return cases.contains(text) }
-            return true
+            guard case .string(let cases, let format) = schema else { return true }
+            return (cases?.contains(text) ?? true) && (format?.accepts(text) ?? true)
         case .int64:
             guard let number = value as? Int64 else { return false }
             switch schema {
             case .boolean: return number == 0 || number == 1
-            case .integer(let cases?): return cases.contains(number)
+            case .integer(let cases, let minimum, let maximum):
+                return (cases?.contains(number) ?? true) && JSONSchema.integer(number, isAtLeast: minimum, atMost: maximum)
             default: return true
             }
         case .double: return value as? Double != nil
@@ -50,7 +52,10 @@ private extension RecordSchema.FieldType {
         case .asset: return value as? CKAsset != nil
         case .list(let element):
             guard let items = value as? [Any] else { return false }
-            let elementSchema: JSONSchema = if case .array(let elementSchema) = schema { elementSchema } else { schema }
+            let elementSchema: JSONSchema = switch schema {
+            case .array(let elementSchema), .set(let elementSchema): elementSchema
+            default: schema
+            }
             return items.allSatisfy { element.accepts($0, as: elementSchema) }
         }
     }

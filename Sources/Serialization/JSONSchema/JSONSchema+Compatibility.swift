@@ -4,10 +4,16 @@
 /// - An object ignores keys it does not declare.
 /// - An optional property may be missing or `null`.
 /// - An `integer` is a valid `number`, because `Double` decodes `1`.
-/// - Restricted `cases` must contain every case the other side can send.
+/// - Restricted `cases` must contain every case the other side can send,
+///   and integer bounds must contain the other side's bounds, so an `Int8`
+///   reader does not accept an `Int` writer.
+/// - A string `format` must match, because a `UUID` cannot decode any
+///   string. A plain string reader accepts every format.
+/// - An `array` accepts a `set`, but a `set` does not accept an `array`,
+///   because `Set` would silently drop repeated elements.
 ///
-/// Integer width is not part of a schema, so an `Int8` reader is reported
-/// as accepting an `Int` writer even though large values will fail.
+/// `Int`, `Int64`, `UInt` and `UInt64` have no upper bound in a schema, so
+/// that their schemas are the same on every platform.
 extension JSONSchema {
     /// Whether a type with this schema can decode every value written under
     /// `other`, as in `reader.isSuperset(of: writer)`.
@@ -21,11 +27,20 @@ extension JSONSchema {
             wrapped.isSuperset(of: other)
         case (.null, .null), (.boolean, .boolean), (.number, .number), (.number, .integer):
             true
-        case let (.integer(cases), .integer(otherCases)):
-            Self.cases(cases, include: otherCases)
-        case let (.string(cases), .string(otherCases)):
-            Self.cases(cases, include: otherCases)
-        case let (.array(items), .array(otherItems)):
+        case let (.integer(cases, minimum, maximum), .integer(otherCases, otherMinimum, otherMaximum)):
+            if let otherCases {
+                otherCases
+                    .filter { Self.integer($0, isAtLeast: otherMinimum, atMost: otherMaximum) }
+                    .allSatisfy { (cases?.contains($0) ?? true) && Self.integer($0, isAtLeast: minimum, atMost: maximum) }
+            } else {
+                cases == nil
+                    && (otherMinimum ?? .min) >= (minimum ?? .min)
+                    && (otherMaximum ?? .max) <= (maximum ?? .max)
+            }
+        case let (.string(cases, format), .string(otherCases, otherFormat)):
+            (format == nil || format == otherFormat) && Self.cases(cases, include: otherCases)
+        case let (.array(items), .array(otherItems)), let (.array(items), .set(otherItems)),
+             let (.set(items), .set(otherItems)), let (.dictionary(items), .dictionary(otherItems)):
             items.isSuperset(of: otherItems)
         case let (.object(properties), .object(otherProperties)):
             properties.allSatisfy { property in
@@ -62,5 +77,13 @@ private extension JSONSchema {
         guard let cases else { return true }
         guard let other else { return false }
         return cases.isSuperset(of: other)
+    }
+}
+
+extension JSONSchema {
+    /// Whether `value` lies within the inclusive bounds, where `nil` means
+    /// unbounded.
+    static func integer(_ value: Int64, isAtLeast minimum: Int64?, atMost maximum: Int64?) -> Bool {
+        value >= (minimum ?? .min) && value <= (maximum ?? .max)
     }
 }

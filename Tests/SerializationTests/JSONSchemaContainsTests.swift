@@ -152,10 +152,12 @@ private extension JSONSchema {
         switch self {
         case .null: return .null
         case .boolean: return .bool(Bool.random(using: &generator))
-        case .integer(let cases): return .number(String(cases?.randomElement(using: &generator) ?? Int64.random(in: -3...3, using: &generator)))
+        case .integer(let cases, _, _): return .number(String(cases?.randomElement(using: &generator) ?? Int64.random(in: -3...3, using: &generator)))
         case .number: return Bool.random(using: &generator) ? .number("2.5") : .number("4")
-        case .string(let cases): return .string(cases?.randomElement(using: &generator) ?? "z")
+        case .string(let cases, _): return .string(cases?.randomElement(using: &generator) ?? "z")
         case .array(let items): return .array((0..<Int.random(in: 0...3, using: &generator)).map { _ in items.sample(using: &generator) })
+        case .set(let items): return .array((0..<Int.random(in: 0...1, using: &generator)).map { _ in items.sample(using: &generator) })
+        case .dictionary(let values): return .object((0..<Int.random(in: 0...2, using: &generator)).map { (key: "k\($0)", value: values.sample(using: &generator)) })
         case .optional(let wrapped): return Bool.random(using: &generator) ? .null : wrapped.sample(using: &generator)
         case .object(let properties):
             var pairs: JSONRepresentation.Object = []

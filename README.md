@@ -84,17 +84,38 @@ are marked optional, and `String` and `Int` raw-value enums list their cases.
 
 ```swift
 let schema = try JSONSchema(for: Settings.self)
-print(schema)                    // standard JSON Schema text
+print(schema)                    // JSON Schema text
+schema.json(.standard)           // a 2020-12 document with "$schema"
 schema.json(.strict)             // every property required, nullable optionals,
                                  // and "additionalProperties": false
 ```
+
+Schemas are written in [JSON Schema draft 2020-12](https://json-schema.org/draft/2020-12),
+using only keywords that dialect defines, so the schema says more than the
+JSON's shape:
+
+| Swift | Schema | 2020-12 keywords |
+| --- | --- | --- |
+| `UUID` | `.string(format: .uuid)` | `"format": "uuid"` |
+| `URL` | `.string(format: .uriReference)` | `"format": "uri-reference"` |
+| `Data` | `.string(format: .base64)` | `"contentEncoding": "base64"` |
+| `Int8`, `UInt16`, … | `.integer(minimum: -128, maximum: 127)` | `"minimum"`, `"maximum"` |
+| `UInt`, `UInt64` | `.integer(minimum: 0)` | `"minimum": 0` |
+| `Set<Element>` | `.set(element)` | `"uniqueItems": true` |
+| `[String: Value]` | `.dictionary(value)` | `"additionalProperties": <value>` |
+
+`Int`, `Int64`, `UInt` and `UInt64` have no upper bound, so a schema is the
+same on every platform. Stored schemas are read back with `Codable`, with or
+without `"$schema"`.
 
 ### Compatibility
 
 The three checks follow the rules `JSONDecoder` actually applies: extra keys
 are ignored, an optional property may be missing or `null`, an integer is
-accepted where a number is expected, and enum cases must cover what the other
-side can send.
+accepted where a number is expected, and enum cases and integer bounds must
+cover what the other side can send. A `UUID` reader does not accept any
+string, and a `Set` reader does not accept an array, because it would drop
+repeated elements.
 
 ```swift
 let saved = try JSONSchema(for: SettingsV1.self)
@@ -418,4 +439,13 @@ Tests use [Swift Testing](https://github.com/swiftlang/swift-testing).
 
 ```sh
 swift test
+```
+
+Every schema is checked for 2020-12 keywords in the tests. To check them with
+an independent validator as CI does, write the fixtures and run the script:
+
+```sh
+JSON_SCHEMA_FIXTURES=/tmp/schemas swift test
+pip install jsonschema
+python3 Scripts/validate-json-schemas.py /tmp/schemas
 ```

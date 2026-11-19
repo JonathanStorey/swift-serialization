@@ -113,7 +113,7 @@ private struct Pair: Decodable {
         #expect(try JSONSchema(for: String.self) == .string())
         #expect(try JSONSchema(for: Bool.self) == .boolean)
         #expect(try JSONSchema(for: Int.self) == .integer())
-        #expect(try JSONSchema(for: UInt8.self) == .integer())
+        #expect(try JSONSchema(for: UInt8.self) == .integer(minimum: 0, maximum: 255))
         #expect(try JSONSchema(for: Double.self) == .number)
         #expect(try JSONSchema(for: Float.self) == .number)
         #expect(try JSONSchema(for: Int?.self) == .optional(.integer()))
@@ -149,7 +149,7 @@ private struct Pair: Decodable {
             (key: "parent", value: .optional(address)),
             (key: "tags", value: .array(.optional(.string()))),
             (key: "grid", value: .array(.array(.integer()))),
-            (key: "flags", value: .array(.boolean)),
+            (key: "flags", value: .set(.boolean)),
         ])
         #expect(try JSONSchema(for: Company.self) == expected)
     }
@@ -173,10 +173,10 @@ private struct Pair: Decodable {
     @Test func foundationTypesMatchJSONEncoderDefaults() throws {
         let expected: JSONSchema = .object([
             (key: "created", value: .number),
-            (key: "link", value: .string()),
-            (key: "payload", value: .string()),
+            (key: "link", value: .string(format: .uriReference)),
+            (key: "payload", value: .string(format: .base64)),
             (key: "amount", value: .number),
-            (key: "id", value: .string()),
+            (key: "id", value: .string(format: .uuid)),
         ])
         #expect(try JSONSchema(for: Stamped.self) == expected)
     }
@@ -204,9 +204,14 @@ private struct Pair: Decodable {
         #expect(throws: DecodingError.self) { try JSONSchema(for: LinkedNode.self) }
     }
 
-    @Test func dictionariesThrow() {
-        #expect(throws: DecodingError.self) { try JSONSchema(for: [String: Int].self) }
-        #expect(throws: DecodingError.self) { try JSONSchema(for: WithDictionary.self) }
+    @Test func stringKeyedDictionariesRecordTheirValues() throws {
+        #expect(try JSONSchema(for: [String: Int].self) == .dictionary(.integer()))
+        #expect(try JSONSchema(for: WithDictionary.self) == .object([(key: "counts", value: .dictionary(.integer()))]))
+        #expect(try JSONSchema(for: [String: [String: Bool?]].self) == .dictionary(.dictionary(.optional(.boolean))))
+    }
+
+    @Test func otherDictionariesThrow() {
+        #expect(throws: DecodingError.self) { try JSONSchema(for: [Int: String].self) }
     }
 
     @Test func rawValueEnumsWithoutCaseIterableThrow() {

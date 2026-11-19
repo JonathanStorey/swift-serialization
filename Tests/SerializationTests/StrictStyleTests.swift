@@ -14,8 +14,10 @@ import Testing
         #expect(schema.json(.strict).description == expected)
     }
 
-    @Test func standardIsUnchanged() {
-        #expect(schema.json(.standard) == schema.json)
+    @Test func standardAddsOnlyTheDialect() {
+        guard case .object(let pairs) = schema.json(.standard) else { Issue.record("Not an object"); return }
+        #expect(pairs.first?.key == "$schema")
+        #expect(JSONRepresentation.object(Array(pairs.dropFirst())) == schema.json)
         let expected = #"{"type":"object","properties":{"name":{"type":"string"},"nickname":{"type":"string"},"tags":{"type":"array","items":{"type":"object","properties":{"label":{"type":"string","enum":["a","b"]}},"required":["label"]}},"owner":{"type":"object","properties":{"id":{"type":"integer"},"note":{"type":"string"}},"required":["id"]}},"required":["name","tags"]}"#
         #expect(schema.json.description == expected)
     }
@@ -33,11 +35,11 @@ import Testing
     ])
     func bothStylesReadBack(_ value: JSONSchema) {
         #expect(JSONSchema(json: value.json(.strict)) == value)
-        #expect(JSONSchema(json: value.json(.standard)) == value)
+        #expect(JSONSchema(document: value.json(.standard)) == value)
     }
 
     @Test func idAndDescriptionUseStandard() {
-        #expect(schema.description == schema.json(.standard).description)
+        #expect(schema.description == schema.json.description)
         #expect(schema.json(.strict) != schema.json(.standard))
     }
 
