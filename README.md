@@ -184,6 +184,229 @@ Applying it to `stored` gives a value that `Settings` decodes the same as
 `JSONDifference` is `Codable`, `Hashable` and `Sendable`. It encodes as an
 array of changes, and its `description` is the readable form shown above.
 
+## CloudKit records
+
+### References
+
+`@Reference` holds a read-only link to another `Identifiable` model as that
+model's `id`, ready for CloudKit's `CKRecord.Reference`. The generic target
+is inferred from the type you pass.
+
+```swift
+struct Folder: Codable, Identifiable {
+    var id: UUID
+}
+
+struct Note: Codable, Identifiable {
+    var id: UUID
+    @Reference(Folder.self, action: .deleteSelf) var folder: Folder.ID? = nil
+}
+
+let note = Note(id: UUID(), folder: folder.id)
+note.folder                      // Optional(folder.id)
+```
+
+The property is set when the model is created or decoded, and the wrapper
+stores only the id and its action. It encodes a
+`RecordRepresentation.Reference`, so `JSONEncoder` writes
+`{"folder":{"action":"deleteSelf","recordName":"..."},"id":"..."}`. A `nil`
+reference is left out, and a missing key decodes as `nil`. The target's `id`
+must be a `UUID`, and the record name is its `uuidString`, which is always a
+valid CloudKit record name and reads back exactly.
+
+The action follows `CKRecord.Reference`. With `.deleteSelf`, the record
+holding the property deletes itself when the target is deleted. A decoded
+reference keeps the action it was saved with. Swift does not pass the
+attribute's arguments to `init(from:)`, so a reference decoded as `nil` has
+the action `.none`.
+
+### Reference lists
+
+`@References` holds a read-only to-many relationship as the targets' ids, in
+order. The initializer picks how the list is stored, and the property reads
+the same either way.
+
+```swift
+struct Note: Codable, Identifiable {
+    var id: UUID
+    @References(Attachment.self) var attachments: [UUID] = []
+    @References(to: \Tag.notes, action: .deleteSelf) var tags: [UUID] = []
+}
+
+struct Tag: Codable, Identifiable {
+    var id: UUID
+    @References(from: \Note.tags) var notes: [UUID] = []
+}
+```
+
+A target type alone stores the list as one reference list field, like
+`CKRecord`'s own, so it travels with the record and two devices settle on
+one list. A key path to the target's inverse stores each reference as its
+own `Relationship` record instead, so the list has no size limit and edits
+from two devices merge. The inverse points back at the declaring property
+and reads the same links from the other end. Its link name, `"Note.tags"`,
+comes from the coding key behind the key path, so it follows `CodingKeys`.
+
+A `Relationship` is named by the declaring side, as in `"Note.tags"`, with
+the declaring record's id and then the target's. Its id is a stable hash of
+those three values, so the same link always maps to the same record. It
+also holds `order`, the link's position in the declaring list, and
+`inverseOrder`, its position in the inverse's list, and each side sorts by
+its own. A new link is unplaced, and `link[orderIn: record]` places it in
+either end's list without knowing which side declared it.
+
+Either way the wrapper encodes each id as a `RecordRepresentation.Reference`
+carrying the action, which a decoded list takes from its first element.
+With `.deleteSelf`, the record holding the property deletes itself when any
+target is deleted. An empty list is left out, and a missing key decodes as
+an empty list.
+
+Use `@Reference` for one target and `@References` for many. Add a key path
+when the list should merge across devices or outgrow a field.
+
+### Parents
+
+`@Parent` is a read-only `@Reference` to the record that owns this one, and
+it is saved as the record's `parent`. CloudKit shares a record together with
+every record whose parent points at it, so sharing a folder shares its notes.
+
+```swift
+struct Note: Codable, Identifiable {
+    var id: UUID
+    @Parent(Folder.self) var folder: Folder.ID? = nil
+}
+```
+
+It encodes like a `@Reference` with no action, because CloudKit requires a
+parent reference to have the action `.none`.
+
+### Locations
+
+`Location` holds every value a `CLLocation` saves to a CloudKit record:
+coordinate, altitude, accuracies, course, speed and timestamp. It is a plain
+`Codable` value, so optional locations and lists of locations work like any
+other property, and on Apple platforms it converts to and from `CLLocation`.
+
+```swift
+struct Place: Codable {
+    var home: Location?
+    var route: [Location] = []
+}
+
+place.home?.latitude                    // 41.88
+place.home?.clLocation                  // CLLocation
+Location(clLocation)                    // back from CoreLocation
+```
+
+Unmeasured values follow CoreLocation: a negative accuracy, course or speed
+means the value is invalid. CoreLocation exists only on Apple platforms, so
+on Linux a `Location` has no `clLocation`.
+
+### Timestamps
+
+`@Timestamp` holds a read-only date that the server sets, such as when
+CloudKit last modified the record.
+
+```swift
+struct Note: Codable, Hashable {
+    var title: String
+    @Timestamp var updatedOnServer: Date? = nil
+}
+```
+
+The date is read when a model is decoded and never encoded, so it is never
+sent back to the server. It takes no part in equality or hashing, so two
+copies that differ only in when the server saved them are equal.
+
+### Encrypted values
+
+`@Encrypted` marks a property that CloudKit stores encrypted end to end. It
+encodes exactly as its value does, so JSON is unchanged.
+
+```swift
+@Encrypted var body: String = ""
+@Encrypted var pin: Int? = nil
+```
+
+CloudKit can encrypt strings, numbers, dates, data, locations and lists of
+them, but not references or assets. Encrypted fields cannot be queried,
+sorted or indexed.
+
+### Assets
+
+`@Asset` holds a file that CloudKit stores as a `CKAsset`. The property reads
+and writes `Data`, and its projected value is the file's URL, for APIs that
+work with files.
+
+```swift
+struct Note: Codable {
+    @Asset var attachment: Data? = nil
+}
+
+note.attachment = bytes                 // writes a temporary file
+note.$attachment = fileURL              // or points at a file you own
+let pdf = PDFDocument(url: note.$attachment!)
+```
+
+Reading `attachment` maps the file into memory, so bytes load only as they
+are used. The wrapper encodes the URL, not the bytes. A URL is local to one
+device, and CloudKit hands back a new one each time a record is fetched.
+
+### Transient values
+
+`@Transient` holds a value only in memory, such as a cache or interface
+state. It is never encoded, it is `nil` whenever a model is decoded, and it
+takes no part in equality or hashing. Its value need not be `Codable`.
+
+```swift
+@Transient var thumbnail: Image? = nil
+```
+
+## RecordSchema
+
+`RecordSchema(for:)` describes the fields a `Decodable` type stores in a
+CloudKit record, from the type alone, and tells you whether two versions of
+it can read each other's records.
+
+```swift
+let saved = try RecordSchema(for: NoteV1.self)
+let current = try RecordSchema(for: NoteV2.self)
+
+current.isSuperset(of: saved)     // V2 can read every record V1 saved
+current.isSubset(of: saved)       // V1 can read every record V2 saves
+current.isCompatible(with: saved) // both directions
+current.fields["created"]?.type   // TIMESTAMP
+```
+
+Each field has its CloudKit type, whether it is encrypted, and the
+`JSONSchema` of what it holds. `Date` is `TIMESTAMP`, `Data` is `BYTES`,
+`Location` is `LOCATION`, `@Asset` is `ASSET`, references are `REFERENCE`,
+arrays are `LIST`, and a nested value or a list of optionals is `BYTES`, because a CloudKit list cannot hold `nil`. `@Timestamp` and
+`@Transient` properties are never written, so they are not fields.
+
+The checks are stricter than `JSONSchema`'s, because CloudKit never changes
+a field once it reaches production. A field's type and encryption must
+match, so `Int` to `Double` is incompatible. A new field must be optional,
+fields the reader does not declare are ignored, and enum cases must cover
+what the other side can write. Moving a `@References` list between a field
+and `Relationship` records does not change the type, so treat it as a
+migration.
+
+`id` is a stable `UUID` computed from the schema, and a schema stored with
+`Codable` reads back equal.
+
+On Apple platforms with CloudKit encryption (macOS 12, iOS 15 and later),
+`contains(_:)` asks whether the type can read a
+`CKRecord` it fetched, such as one saved by a newer version of the app:
+
+```swift
+schema.contains(record)          // Note can read this CKRecord
+```
+
+The record type must match, every required field must be present with the
+field's CloudKit type, encrypted fields must be in `encryptedValues`, and an
+enum field must hold one of its cases.
+
 ## Requirements
 
 - Swift 6.0 or later (Xcode 16+)
