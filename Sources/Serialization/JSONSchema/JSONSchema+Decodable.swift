@@ -15,14 +15,19 @@ extension JSONSchema {
     /// names with `CodingKeys` instead, which the schema respects.
     ///
     /// - `Date` and `Decimal` record `.number`, and `URL`, `Data` and `UUID`
-    ///   record `.string`, matching `JSONEncoder`'s default strategies.
+    ///   record `.string` with a ``Format``, matching `JSONEncoder`'s
+    ///   default strategies.
+    /// - A fixed-width integer narrower than 64 bits records its bounds, and
+    ///   an unsigned one records a minimum of 0.
+    /// - A `Set` records ``set(_:)``, and a `Dictionary` keyed by `String`
+    ///   records ``dictionary(_:)``.
     /// - A `CaseIterable` raw-value enum records its raw values as the only
     ///   allowed values, for example `.string(cases: ["red", "green"])`.
     ///   A raw-value enum whose placeholder (`""` or `0`) is not a case must
     ///   conform to `CaseIterable`.
     /// - Throws `DecodingError.dataCorrupted` for what `JSONSchema` cannot
-    ///   describe: recursive types, objects with arbitrary keys such as
-    ///   `Dictionary`, and arrays decoded by position. An error the type throws
+    ///   describe: recursive types, other objects that read their keys at
+    ///   runtime, and arrays decoded by position. An error the type throws
     ///   itself is wrapped as the `underlyingError` of a `.dataCorrupted`, so
     ///   every failure is a `DecodingError`.
     public init<T: Decodable>(for type: T.Type) throws {
@@ -64,6 +69,7 @@ private final class SchemaRecorder: Decoder {
         case scalar(JSONSchema)
         case object([(key: String, recorder: SchemaRecorder)], readsAllKeys: Bool)
         case array(SchemaRecorder?)
+        case dictionary(SchemaRecorder)
     }
 
     let codingPath: [any CodingKey]
@@ -71,6 +77,8 @@ private final class SchemaRecorder: Decoder {
     var userInfo: [CodingUserInfoKey: Any] { [:] }
     var kind: Kind = .unknown
     var isOptional = false
+    /// Whether the array's elements are unique, as a `Set`'s are.
+    var isUnique = false
     /// Keys checked with `contains(_:)`. A type that checks for a key before
     /// decoding it treats the key as optional.
     var checkedKeys: Set<String> = []
@@ -102,6 +110,11 @@ extension SchemaRecorder {
             context.hints[path, default: []].insert(hint)
         }
         if let value = try foundationPlaceholder(type) { return value }
+        if let dictionary = type as? any StringKeyedDictionary.Type {
+            _ = try values().decode(dictionary.valueType)
+            guard let value = dictionary.init() as? T else { preconditionFailure("\(T.self) is the dictionary type") }
+            return value
+        }
 
         let id = ObjectIdentifier(type)
         guard context.visiting.insert(id).inserted else {
@@ -125,6 +138,9 @@ extension SchemaRecorder {
             value = first
         }
         recordCases(of: type)
+        if case .array = kind, type is any SetAlgebra.Type {
+            isUnique = true
+        }
         // A reference gets a unique record name, so a key path can find it.
         if var reference = value as? RecordRepresentation.Reference {
             let marker = UUID()
@@ -140,12 +156,12 @@ extension SchemaRecorder {
     func recordCases<T>(of type: T.Type) {
         guard case .scalar(let schema) = kind, let rawValues = rawValues(of: type) else { return }
         switch schema {
-        case .string(.none):
+        case .string(nil, nil):
             let strings = rawValues.compactMap { $0 as? String }
             if strings.count == rawValues.count {
                 kind = .scalar(.string(cases: Set(strings)))
             }
-        case .integer(.none):
+        case .integer(nil, _, _):
             let integers = rawValues.compactMap { ($0 as? any BinaryInteger).flatMap { Int64(exactly: $0) } }
             if integers.count == rawValues.count {
                 kind = .scalar(.integer(cases: Set(integers)))
@@ -187,6 +203,20 @@ extension SchemaRecorder {
         return element
     }
 
+    /// The recorder for a dictionary's values, whose path ends in `"*"`.
+    func values() throws -> SchemaRecorder {
+        switch kind {
+        case .unknown:
+            let values = SchemaRecorder(codingPath: codingPath + [JSONRepresentation.Path.Segment.key("*")], context: context)
+            kind = .dictionary(values)
+            return values
+        case .dictionary(let values):
+            return values
+        default:
+            throw unsupported("The value was decoded as more than one kind.")
+        }
+    }
+
     func readAllKeys() {
         if case .object(let properties, _) = kind {
             kind = .object(properties, readsAllKeys: true)
@@ -202,7 +232,7 @@ extension SchemaRecorder {
             base = schema
         case .object(let properties, let readsAllKeys):
             guard !readsAllKeys else {
-                throw unsupported("The keys are read at runtime, as Dictionary does. JSONSchema has no case for objects with arbitrary keys.")
+                throw unsupported("The keys are read at runtime. JSONSchema describes a Dictionary keyed by String, but not other types that read their keys at runtime.")
             }
             base = .object(try properties.map { property in
                 let schema = try property.recorder.schema()
@@ -211,7 +241,9 @@ extension SchemaRecorder {
             })
         case .array(let element):
             guard let element else { throw unsupported("No array element was decoded.") }
-            base = .array(try element.schema())
+            base = isUnique ? .set(try element.schema()) : .array(try element.schema())
+        case .dictionary(let values):
+            base = .dictionary(try values.schema())
         }
         return isOptional ? .optional(base) : base
     }
@@ -244,11 +276,34 @@ private extension SchemaRecorder {
         switch type {
         case is Date.Type: return try scalar(.number, Date(timeIntervalSinceReferenceDate: 0) as? T)
         case is Decimal.Type: return try scalar(.number, Decimal() as? T)
-        case is URL.Type: return try scalar(.string(), URL(fileURLWithPath: "/") as? T)
-        case is Data.Type: return try scalar(.string(), Data() as? T)
-        case is UUID.Type: return try scalar(.string(), UUID() as? T)
+        case is URL.Type: return try scalar(.string(format: .uriReference), URL(fileURLWithPath: "/") as? T)
+        case is Data.Type: return try scalar(.string(format: .base64), Data() as? T)
+        case is UUID.Type: return try scalar(.string(format: .uuid), UUID() as? T)
         default: return nil
         }
+    }
+}
+
+/// A dictionary keyed by `String`, which `JSONEncoder` writes as an object
+/// with any keys.
+private protocol StringKeyedDictionary {
+    static var valueType: any Decodable.Type { get }
+    init()
+}
+
+extension Dictionary: StringKeyedDictionary where Key == String, Value: Decodable {
+    static var valueType: any Decodable.Type { Value.self }
+}
+
+private extension JSONSchema {
+    /// The schema of a fixed-width integer. `Int` and `UInt` follow `Int64`
+    /// and `UInt64` on every platform, so a schema does not depend on where
+    /// it was made, and 64-bit types have no upper bound.
+    static func integer<T: FixedWidthInteger>(for type: T.Type) -> JSONSchema {
+        guard T.bitWidth < 64, T.self != Int.self, T.self != UInt.self else {
+            return .integer(minimum: T.isSigned ? nil : 0)
+        }
+        return .integer(minimum: Int64(T.min), maximum: Int64(T.max))
     }
 }
 
@@ -300,16 +355,16 @@ private struct KeyedRecorder<Key: CodingKey>: KeyedDecodingContainerProtocol {
     func decode(_ type: String.Type, forKey key: Key) throws -> String { try recorder.child(for: key).scalar(.string(), "") }
     func decode(_ type: Double.Type, forKey key: Key) throws -> Double { try recorder.child(for: key).scalar(.number, 0) }
     func decode(_ type: Float.Type, forKey key: Key) throws -> Float { try recorder.child(for: key).scalar(.number, 0) }
-    func decode(_ type: Int.Type, forKey key: Key) throws -> Int { try recorder.child(for: key).scalar(.integer(), 0) }
-    func decode(_ type: Int8.Type, forKey key: Key) throws -> Int8 { try recorder.child(for: key).scalar(.integer(), 0) }
-    func decode(_ type: Int16.Type, forKey key: Key) throws -> Int16 { try recorder.child(for: key).scalar(.integer(), 0) }
-    func decode(_ type: Int32.Type, forKey key: Key) throws -> Int32 { try recorder.child(for: key).scalar(.integer(), 0) }
-    func decode(_ type: Int64.Type, forKey key: Key) throws -> Int64 { try recorder.child(for: key).scalar(.integer(), 0) }
-    func decode(_ type: UInt.Type, forKey key: Key) throws -> UInt { try recorder.child(for: key).scalar(.integer(), 0) }
-    func decode(_ type: UInt8.Type, forKey key: Key) throws -> UInt8 { try recorder.child(for: key).scalar(.integer(), 0) }
-    func decode(_ type: UInt16.Type, forKey key: Key) throws -> UInt16 { try recorder.child(for: key).scalar(.integer(), 0) }
-    func decode(_ type: UInt32.Type, forKey key: Key) throws -> UInt32 { try recorder.child(for: key).scalar(.integer(), 0) }
-    func decode(_ type: UInt64.Type, forKey key: Key) throws -> UInt64 { try recorder.child(for: key).scalar(.integer(), 0) }
+    func decode(_ type: Int.Type, forKey key: Key) throws -> Int { try recorder.child(for: key).scalar(.integer(for: type), 0) }
+    func decode(_ type: Int8.Type, forKey key: Key) throws -> Int8 { try recorder.child(for: key).scalar(.integer(for: type), 0) }
+    func decode(_ type: Int16.Type, forKey key: Key) throws -> Int16 { try recorder.child(for: key).scalar(.integer(for: type), 0) }
+    func decode(_ type: Int32.Type, forKey key: Key) throws -> Int32 { try recorder.child(for: key).scalar(.integer(for: type), 0) }
+    func decode(_ type: Int64.Type, forKey key: Key) throws -> Int64 { try recorder.child(for: key).scalar(.integer(for: type), 0) }
+    func decode(_ type: UInt.Type, forKey key: Key) throws -> UInt { try recorder.child(for: key).scalar(.integer(for: type), 0) }
+    func decode(_ type: UInt8.Type, forKey key: Key) throws -> UInt8 { try recorder.child(for: key).scalar(.integer(for: type), 0) }
+    func decode(_ type: UInt16.Type, forKey key: Key) throws -> UInt16 { try recorder.child(for: key).scalar(.integer(for: type), 0) }
+    func decode(_ type: UInt32.Type, forKey key: Key) throws -> UInt32 { try recorder.child(for: key).scalar(.integer(for: type), 0) }
+    func decode(_ type: UInt64.Type, forKey key: Key) throws -> UInt64 { try recorder.child(for: key).scalar(.integer(for: type), 0) }
 
     func decode<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> T {
         try recorder.child(for: key).decode(type)
@@ -359,16 +414,16 @@ private struct UnkeyedRecorder: UnkeyedDecodingContainer {
     mutating func decode(_ type: String.Type) throws -> String { try nextElement().scalar(.string(), "") }
     mutating func decode(_ type: Double.Type) throws -> Double { try nextElement().scalar(.number, 0) }
     mutating func decode(_ type: Float.Type) throws -> Float { try nextElement().scalar(.number, 0) }
-    mutating func decode(_ type: Int.Type) throws -> Int { try nextElement().scalar(.integer(), 0) }
-    mutating func decode(_ type: Int8.Type) throws -> Int8 { try nextElement().scalar(.integer(), 0) }
-    mutating func decode(_ type: Int16.Type) throws -> Int16 { try nextElement().scalar(.integer(), 0) }
-    mutating func decode(_ type: Int32.Type) throws -> Int32 { try nextElement().scalar(.integer(), 0) }
-    mutating func decode(_ type: Int64.Type) throws -> Int64 { try nextElement().scalar(.integer(), 0) }
-    mutating func decode(_ type: UInt.Type) throws -> UInt { try nextElement().scalar(.integer(), 0) }
-    mutating func decode(_ type: UInt8.Type) throws -> UInt8 { try nextElement().scalar(.integer(), 0) }
-    mutating func decode(_ type: UInt16.Type) throws -> UInt16 { try nextElement().scalar(.integer(), 0) }
-    mutating func decode(_ type: UInt32.Type) throws -> UInt32 { try nextElement().scalar(.integer(), 0) }
-    mutating func decode(_ type: UInt64.Type) throws -> UInt64 { try nextElement().scalar(.integer(), 0) }
+    mutating func decode(_ type: Int.Type) throws -> Int { try nextElement().scalar(.integer(for: type), 0) }
+    mutating func decode(_ type: Int8.Type) throws -> Int8 { try nextElement().scalar(.integer(for: type), 0) }
+    mutating func decode(_ type: Int16.Type) throws -> Int16 { try nextElement().scalar(.integer(for: type), 0) }
+    mutating func decode(_ type: Int32.Type) throws -> Int32 { try nextElement().scalar(.integer(for: type), 0) }
+    mutating func decode(_ type: Int64.Type) throws -> Int64 { try nextElement().scalar(.integer(for: type), 0) }
+    mutating func decode(_ type: UInt.Type) throws -> UInt { try nextElement().scalar(.integer(for: type), 0) }
+    mutating func decode(_ type: UInt8.Type) throws -> UInt8 { try nextElement().scalar(.integer(for: type), 0) }
+    mutating func decode(_ type: UInt16.Type) throws -> UInt16 { try nextElement().scalar(.integer(for: type), 0) }
+    mutating func decode(_ type: UInt32.Type) throws -> UInt32 { try nextElement().scalar(.integer(for: type), 0) }
+    mutating func decode(_ type: UInt64.Type) throws -> UInt64 { try nextElement().scalar(.integer(for: type), 0) }
 
     mutating func decode<T: Decodable>(_ type: T.Type) throws -> T {
         try nextElement().decode(type)
@@ -403,16 +458,16 @@ private struct SingleValueRecorder: SingleValueDecodingContainer {
     func decode(_ type: String.Type) throws -> String { try recorder.scalar(.string(), "") }
     func decode(_ type: Double.Type) throws -> Double { try recorder.scalar(.number, 0) }
     func decode(_ type: Float.Type) throws -> Float { try recorder.scalar(.number, 0) }
-    func decode(_ type: Int.Type) throws -> Int { try recorder.scalar(.integer(), 0) }
-    func decode(_ type: Int8.Type) throws -> Int8 { try recorder.scalar(.integer(), 0) }
-    func decode(_ type: Int16.Type) throws -> Int16 { try recorder.scalar(.integer(), 0) }
-    func decode(_ type: Int32.Type) throws -> Int32 { try recorder.scalar(.integer(), 0) }
-    func decode(_ type: Int64.Type) throws -> Int64 { try recorder.scalar(.integer(), 0) }
-    func decode(_ type: UInt.Type) throws -> UInt { try recorder.scalar(.integer(), 0) }
-    func decode(_ type: UInt8.Type) throws -> UInt8 { try recorder.scalar(.integer(), 0) }
-    func decode(_ type: UInt16.Type) throws -> UInt16 { try recorder.scalar(.integer(), 0) }
-    func decode(_ type: UInt32.Type) throws -> UInt32 { try recorder.scalar(.integer(), 0) }
-    func decode(_ type: UInt64.Type) throws -> UInt64 { try recorder.scalar(.integer(), 0) }
+    func decode(_ type: Int.Type) throws -> Int { try recorder.scalar(.integer(for: type), 0) }
+    func decode(_ type: Int8.Type) throws -> Int8 { try recorder.scalar(.integer(for: type), 0) }
+    func decode(_ type: Int16.Type) throws -> Int16 { try recorder.scalar(.integer(for: type), 0) }
+    func decode(_ type: Int32.Type) throws -> Int32 { try recorder.scalar(.integer(for: type), 0) }
+    func decode(_ type: Int64.Type) throws -> Int64 { try recorder.scalar(.integer(for: type), 0) }
+    func decode(_ type: UInt.Type) throws -> UInt { try recorder.scalar(.integer(for: type), 0) }
+    func decode(_ type: UInt8.Type) throws -> UInt8 { try recorder.scalar(.integer(for: type), 0) }
+    func decode(_ type: UInt16.Type) throws -> UInt16 { try recorder.scalar(.integer(for: type), 0) }
+    func decode(_ type: UInt32.Type) throws -> UInt32 { try recorder.scalar(.integer(for: type), 0) }
+    func decode(_ type: UInt64.Type) throws -> UInt64 { try recorder.scalar(.integer(for: type), 0) }
 
     func decode<T: Decodable>(_ type: T.Type) throws -> T {
         try recorder.decode(type)

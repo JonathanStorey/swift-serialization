@@ -31,8 +31,12 @@ extension JSONRepresentation {
             return isEquivalent(to: other)
         case (.optional(let wrapped)?, _, _):
             return self == .null || other == .null ? self == other : isEquivalent(to: other, under: wrapped)
-        case let (.array(items)?, .array(lhs), .array(rhs)):
+        case let (.array(items)?, .array(lhs), .array(rhs)), let (.set(items)?, .array(lhs), .array(rhs)):
             return lhs.count == rhs.count && zip(lhs, rhs).allSatisfy { $0.isEquivalent(to: $1, under: items) }
+        case let (.dictionary(values)?, .object(lhs), .object(rhs)):
+            return lhs.count == rhs.count && lhs.allSatisfy { pair in
+                rhs.first { $0.key == pair.key }.map { $0.value.isEquivalent(to: pair.value, under: values) } ?? false
+            }
         case let (.object(properties)?, .object, .object):
             return properties.allSatisfy { property in
                 let schema = property.value

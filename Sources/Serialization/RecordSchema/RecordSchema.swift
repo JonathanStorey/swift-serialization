@@ -51,8 +51,9 @@ extension RecordSchema {
     /// - `Date` is `TIMESTAMP`, `Data` is `BYTES`, ``Location`` is
     ///   `LOCATION`, `@Asset` is `ASSET`, and `@Reference`, `@Parent` and
     ///   each element of `@References` are `REFERENCE`.
-    /// - An array is a `LIST`. A nested value, or a list of lists, is stored
-    ///   as `BYTES`, and its ``Field/schema`` describes it. So is a list of
+    /// - An array or a `Set` is a `LIST`. A nested value, a dictionary, or a
+    ///   list of lists, is stored as `BYTES`, and its ``Field/schema``
+    ///   describes it. So is a list of
 ///   optionals, such as `[String?]`, because a CloudKit list cannot hold
 ///   `nil`.
     /// - Throws a `DecodingError` when `JSONSchema` cannot describe the type,
@@ -84,13 +85,13 @@ extension RecordSchema {
         case .string: return .string
         case .integer, .boolean: return .int64
         case .number: return .double
-        case .array(let items):
+        case .array(let items), .set(let items):
             // CloudKit lists cannot hold nil, so a list of optionals is bytes.
             guard !items.isOptional else { return .bytes }
             let element = fieldType(of: items, at: path + [JSONRepresentation.Path.Segment.index(0).stringValue], hints: hints)
             if case .list = element { return .bytes }
             return .list(element)
-        case .object, .null, .optional: return .bytes
+        case .object, .dictionary, .null, .optional: return .bytes
         }
     }
 }

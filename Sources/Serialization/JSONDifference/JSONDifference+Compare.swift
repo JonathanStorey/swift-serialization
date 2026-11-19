@@ -48,9 +48,13 @@ private struct DifferenceRecorder {
         case let (.object(old), .object(new), .object(properties)?):
             compareDeclared(old, new, properties, oldPath: oldPath, newPath: newPath)
         case let (.object(old), .object(new), _):
-            compareObjects(old, new, oldPath: oldPath, newPath: newPath)
+            let values: JSONSchema? = if case .dictionary(let valueSchema)? = schema { valueSchema } else { nil }
+            compareObjects(old, new, oldPath: oldPath, newPath: newPath, values: values)
         case let (.array(old), .array(new), _):
-            let items: JSONSchema? = if case .array(let elementSchema)? = schema { elementSchema } else { nil }
+            let items: JSONSchema? = switch schema {
+            case .array(let elementSchema)?, .set(let elementSchema)?: elementSchema
+            default: nil
+            }
             compareArrays(old, new, oldPath: oldPath, newPath: newPath, items: items)
         case _ where old.isEquivalent(to: new, under: schema):
             break
@@ -95,8 +99,9 @@ private struct DifferenceRecorder {
 
     /// Keys in both are compared inside. A removed key and an added key with
     /// equivalent values are linked as a rename. A repeated key in a
-    /// hand-built object is read as its first occurrence.
-    mutating func compareObjects(_ old: JSONRepresentation.Object, _ new: JSONRepresentation.Object, oldPath: Path, newPath: Path) {
+    /// hand-built object is read as its first occurrence. `values` is the
+    /// schema of a dictionary's values, or `nil` to compare everything.
+    mutating func compareObjects(_ old: JSONRepresentation.Object, _ new: JSONRepresentation.Object, oldPath: Path, newPath: Path, values: JSONSchema? = nil) {
         let oldValues = Dictionary(old.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
         let newValues = Dictionary(new.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
         let removed = Self.uniqueKeys(of: old).filter { newValues[$0] == nil }
@@ -113,7 +118,7 @@ private struct DifferenceRecorder {
 
         for key in Self.uniqueKeys(of: old) {
             if let newValue = newValues[key] {
-                compare(oldValues[key]!, newValue, oldPath: oldPath + [.key(key)], newPath: newPath + [.key(key)])
+                compare(oldValues[key]!, newValue, oldPath: oldPath + [.key(key)], newPath: newPath + [.key(key)], schema: values)
             } else {
                 removals.append(.remove(path: oldPath + [.key(key)], element: oldValues[key]!, associatedWith: renamedTo[key].map { .key($0) }))
             }
