@@ -85,6 +85,6 @@ private struct Settings: Codable {
 
     @Test func throwsForTypesWithoutASchema() {
         let json: JSONRepresentation = ["a": 1]
-        #expect(throws: DecodingError.self) { try json.difference(from: json, as: [String: Int].self) }
+        #expect(throws: DecodingError.self) { try json.difference(from: json, as: [Int: Int].self) }
     }
 }
