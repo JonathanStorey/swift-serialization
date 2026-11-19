@@ -71,14 +71,20 @@ private extension JSONSchema {
             true
         case (.optional(let inner), _):
             inner.describes(json)
-        case (.integer(let cases), .number):
-            if let value = json.int64Value { cases?.contains(value) ?? true } else { cases == nil && json.uint64Value != nil }
+        case (.integer(let cases, let minimum, let maximum), .number):
+            if let value = json.int64Value {
+                (cases?.contains(value) ?? true) && JSONSchema.integer(value, isAtLeast: minimum, atMost: maximum)
+            } else {
+                cases == nil && maximum == nil && json.uint64Value != nil
+            }
         case (.number, .number):
             true
-        case (.string(let cases), .string(let value)):
-            cases?.contains(value) ?? true
-        case (.array(let element), .array(let values)):
+        case (.string(let cases, let format), .string(let value)):
+            (cases?.contains(value) ?? true) && (format?.accepts(value) ?? true)
+        case (.array(let element), .array(let values)), (.set(let element), .array(let values)):
             values.allSatisfy(element.describes)
+        case (.dictionary(let element), .object(let pairs)):
+            pairs.allSatisfy { element.describes($0.value) }
         case (.object(let properties), .object(let pairs)):
             pairs.allSatisfy { pair in properties.contains { $0.key == pair.key } }
                 && properties.allSatisfy { property in

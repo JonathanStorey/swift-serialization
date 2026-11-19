@@ -259,7 +259,7 @@ private let corpus: [JSONSchema] = [
         func changing(_ key: String, to value: JSONRepresentation?) -> JSONRepresentation {
             var changed = valid
             if let value {
-                changed[[key]] = value
+                changed[[.key(key)]] = value
             } else if case .object(let pairs) = changed {
                 changed = .object(pairs.filter { $0.key != key })
             }
