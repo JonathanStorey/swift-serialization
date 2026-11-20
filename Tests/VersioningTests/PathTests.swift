@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Serialization
+@testable import Versioning
 
 private typealias Path = JSONRepresentation.Path
 

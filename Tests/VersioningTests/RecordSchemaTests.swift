@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Serialization
+@testable import Versioning
 
 private struct Folder: Codable, Identifiable {
     var id: UUID

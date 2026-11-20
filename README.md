@@ -1,4 +1,4 @@
-# swift-serialization
+# swift-versioning
 
 Swift-first JSON for `Codable` types: a value tree that matches `JSONEncoder`,
 schemas that describe a type and tell you whether two versions of it can read
@@ -8,17 +8,17 @@ inverted and stored.
 ## Installation
 
 ```swift
-.package(url: "https://github.com/JonathanStorey/swift-serialization", from: "0.1.0")
+.package(url: "https://github.com/JonathanStorey/swift-versioning", from: "0.1.0")
 ```
 
 Then add the product to a target:
 
 ```swift
-.product(name: "Serialization", package: "swift-serialization")
+.product(name: "Versioning", package: "swift-versioning")
 ```
 
 ```swift
-import Serialization
+import Versioning
 ```
 
 ## JSONRepresentation

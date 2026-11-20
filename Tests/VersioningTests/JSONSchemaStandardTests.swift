@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Serialization
+@testable import Versioning
 
 // Checks that every schema is written in JSON Schema draft 2020-12, the
 // dialect its documents declare with "$schema". The keyword test below runs

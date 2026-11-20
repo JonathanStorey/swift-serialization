@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Serialization
+@testable import Versioning
 
 /// Not `Codable`, `Hashable` or `Sendable`, like a cached image.
 private final class Cache {}

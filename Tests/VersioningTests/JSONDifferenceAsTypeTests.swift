@@ -1,5 +1,5 @@
 import Testing
-@testable import Serialization
+@testable import Versioning
 
 private struct Email: Codable, Equatable {
     var address: String

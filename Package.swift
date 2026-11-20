@@ -3,7 +3,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "swift-serialization",
+    name: "swift-versioning",
     // Floors match the minimum deployment targets of the Swift Testing module.
     platforms: [
         .macOS(.v10_15),
@@ -13,13 +13,13 @@ let package = Package(
         .visionOS(.v1),
     ],
     products: [
-        .library(name: "Serialization", targets: ["Serialization"]),
+        .library(name: "Versioning", targets: ["Versioning"]),
     ],
     targets: [
-        .target(name: "Serialization"),
+        .target(name: "Versioning"),
         .testTarget(
-            name: "SerializationTests",
-            dependencies: ["Serialization"]
+            name: "VersioningTests",
+            dependencies: ["Versioning"]
         ),
     ]
 )

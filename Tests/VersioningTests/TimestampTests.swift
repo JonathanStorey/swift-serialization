@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Serialization
+@testable import Versioning
 
 private struct Note: Codable, Hashable {
     var title: String

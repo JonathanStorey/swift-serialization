@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Serialization
+@testable import Versioning
 
 @Suite struct JSONSchemaIdentifiableTests {
     // Reference values from the `mmh3` Python package (`mmh3.hash_bytes`,
