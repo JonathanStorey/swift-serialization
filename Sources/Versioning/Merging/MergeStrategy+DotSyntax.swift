@@ -81,6 +81,16 @@ extension MergeStrategy {
         Self(favoring: side)
     }
 
+    /// ``KeyPathMerge``: the properties it lists by key path, each by the
+    /// strategy named for it, so any type merges, `Codable` or not.
+    ///
+    /// ```swift
+    /// using: .byKeyPath(favoring: .theirs).merging(\.title).merging(\.body, using: .byWord())
+    /// ```
+    public static func byKeyPath<V>(favoring side: KeepMerge<V>? = nil) -> Self where Self == KeyPathMerge<V> {
+        Self(favoring: side)
+    }
+
     /// ``RawValueMerge``: the raw value, merged by `strategy`.
     public static func rawValue<V: RawRepresentable, Strategy: MergeStrategy>(_ strategy: Strategy) -> Self
     where Strategy.Value == V.RawValue, Self == RawValueMerge<V, Strategy> {

@@ -65,27 +65,50 @@ extension MergeStrategy where Value: Equatable {
 /// do {
 ///     note = try ours.merging(with: theirs, from: base)
 /// } catch {
-///     error.paths   // [$.title, $.venue.city]
+///     error.paths      // [$.title, $.venue.city]
+///     error.keyPaths   // [\Note.title], from .byKeyPath()
 /// }
 /// ```
-public struct MergeConflict: Error, Hashable, Sendable {
+///
+/// ``KeyPathMerge`` reports key paths instead, which the compiler checks
+/// and which reach types that are not `Codable`.
+public struct MergeConflict: Error, Hashable, @unchecked Sendable {
     public typealias Path = JSONRepresentation.Path
 
     /// Where the versions conflict, relative to the merged value.
     public var paths: [Path]
 
+    /// Where the versions conflict by key path, rooted at the merged value,
+    /// from ``KeyPathMerge``. Key paths are immutable, so sharing them
+    /// across threads is safe.
+    public var keyPaths: [AnyKeyPath]
+
     /// A conflict at `paths`, by default the whole value.
     public init(at paths: [Path] = [[]]) {
         self.paths = paths
+        keyPaths = []
     }
 
-    /// This conflict, with each path inside `path`.
+    /// A conflict at `keyPaths`.
+    public init(at keyPaths: [AnyKeyPath]) {
+        paths = []
+        self.keyPaths = keyPaths
+    }
+
+    /// This conflict, with each path inside `path`. A conflict found only
+    /// by key path is at `path` itself.
     public func inside(_ path: Path) -> MergeConflict {
-        MergeConflict(at: paths.map { path + $0 })
+        MergeConflict(at: paths.isEmpty ? [path] : paths.map { path + $0 })
     }
 }
 
 extension MergeConflict {
+    /// This conflict, with each key path after `keyPath`. A conflict found
+    /// only by coding path is at `keyPath` itself.
+    func inside(_ keyPath: AnyKeyPath) -> MergeConflict {
+        MergeConflict(at: keyPaths.isEmpty ? [keyPath] : keyPaths.map { keyPath.appending(path: $0) ?? keyPath })
+    }
+
     /// The result of `body`, or `nil` with its conflict's paths, inside
     /// `path`, added to `paths`, so a merge can report every part that
     /// conflicts rather than only the first.

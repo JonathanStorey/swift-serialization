@@ -295,6 +295,28 @@ let merged = try ours.merging(with: theirs, from: base)
 let favoringTheirs = try ours.merging(with: theirs, from: base, using: .favoring(.theirs))
 ```
 
+### Merging by key path
+
+`.byKeyPath()` merges any type, `Codable` or not, including a class such as a
+SwiftData model. You list each property, with a strategy where both sides
+changing it should merge rather than conflict. A `Mergeable` property with
+no strategy merges by its own merge, and a property not listed keeps ours.
+
+```swift
+extension Note: Mergeable {
+    func merging(with theirs: Note, from base: Note) throws(MergeConflict) -> Note {
+        try merging(with: theirs, from: base, using: .byKeyPath()
+            .merging(\.title)
+            .merging(\.body, using: .byWord())
+            .merging(\.tags, using: .union()))
+    }
+}
+```
+
+Every property merges before any is written, so a conflict changes nothing.
+It reports key paths in `keyPaths`, such as `[\Note.title]`, which the
+compiler checks, so renaming a property can never leave a stale path.
+
 ### Merging JSON
 
 `merging(_:base:under:)` merges two `JSONRepresentation` values, guided by a
