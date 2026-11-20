@@ -216,16 +216,8 @@ struct LongerMerge: MergeStrategy {
 }
 ```
 
-`MergedProperty` pairs a value with its strategy. An `Equatable` value keeps
-the side that changed when only one did, so the strategy decides only when both
-sides changed it. Without a base, only equal values merge, unless the strategy
-implements `merge(ours:theirs:)`.
-
-```swift
-var title = MergedProperty(note.title, LongerMerge())
-try title.merge(with: theirs.title, from: base.title)
-note.title = title.value
-```
+Without a base, only equal values merge, unless the strategy implements
+`merge(ours:theirs:)`.
 
 ## CloudKit records
 
