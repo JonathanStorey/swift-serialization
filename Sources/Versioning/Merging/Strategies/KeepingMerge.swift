@@ -2,7 +2,7 @@
 /// Made by ``MergeStrategy/keep(_:)``.
 ///
 /// ```swift
-/// try ours.merging(with: theirs, from: base, using: .byWord.keep(.ours))
+/// try ours.merging(with: theirs, from: base, using: .byWord().keep(.ours))
 /// ```
 ///
 /// The side replaces the whole value. For a `Codable` value, use

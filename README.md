@@ -225,22 +225,22 @@ changed it, keep that side.
 | Strategy | Dot syntax | Works with | Merges | Needs a base |
 | --- | --- | --- | --- | --- |
 | `KeepMerge` | `.keep(.ours)`, `.keep(.theirs)` | anything | the named side | no |
-| `ComparableMaximumMerge` | `.maximum` | any `Comparable` | the larger | no |
-| `NumericSumMerge` | `.sum` | any `Numeric` | both changes added, as a counter | yes |
-| `BoolTrueWinsMerge` | `.trueWins` | `Bool` | `true` if either is | no |
-| `SetAlgebraMembershipMerge` | `.byMembership` | `Set`, any `OptionSet` | additions and removals from both | yes |
-| `SetAlgebraUnionMerge` | `.union` | `Set`, any `OptionSet` | as membership, or every element without a base | no |
+| `ComparableMaximumMerge` | `.maximum()` | any `Comparable` | the larger | no |
+| `NumericSumMerge` | `.sum()` | any `Numeric` | both changes added, as a counter | yes |
+| `BoolTrueWinsMerge` | `.trueWins()` | `Bool` | `true` if either is | no |
+| `SetAlgebraMembershipMerge` | `.byMembership()` | `Set`, any `OptionSet` | additions and removals from both | yes |
+| `SetAlgebraUnionMerge` | `.union()` | `Set`, any `OptionSet` | as membership, or every element without a base | no |
 | `DictionaryKeyedMerge` | `.byKey()` | any `Dictionary` | key by key | yes |
-| `RangeReplaceableCollectionElementMerge` | `.byElement` | arrays, `String` | element by element, like lines | yes |
-| `StringWordMerge` | `.byWord` | `String` | word by word | yes |
-| `JSONMerge` | `.json`, `.json(onConflict:)` | any `Codable` | node by node, guided by its schema | no |
+| `RangeReplaceableCollectionElementMerge` | `.byElement()` | arrays, `String` | element by element, like lines | yes |
+| `StringWordMerge` | `.byWord()` | `String` | word by word | yes |
+| `JSONMerge` | `.json()`, `.json(onConflict:)` | any `Codable` | node by node, guided by its schema | no |
 | `RawValueMerge` | `.rawValue(_:)` | any `RawRepresentable` | its raw value, by another strategy | as that strategy |
 
 The dot syntax works wherever a strategy is expected. `keep(_:)` keeps a side
-wherever a strategy conflicts, as in `.byWord.keep(.ours)`.
+wherever a strategy conflicts, as in `.byWord().keep(.ours)`.
 
 A type that merges with another version of itself conforms to `Mergeable`. A
-`Codable` type has nothing to write: it merges field by field, as `.json`
+`Codable` type has nothing to write: it merges field by field, as `.json()`
 does. Any type can name a strategy instead, and a caller can choose one for a
 single merge:
 
@@ -253,7 +253,7 @@ struct Note: Codable, Mergeable {
 struct Views: RawRepresentable, Codable, Mergeable {
     var rawValue: Int
     func merging(with theirs: Views, from base: Views) throws(MergeConflict) -> Views {
-        try merging(with: theirs, from: base, using: .rawValue(.sum))
+        try merging(with: theirs, from: base, using: .rawValue(.sum()))
     }
 }
 

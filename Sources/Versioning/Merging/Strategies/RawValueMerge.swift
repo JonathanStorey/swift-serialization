@@ -6,7 +6,7 @@
 /// struct Views: RawRepresentable, Codable, Mergeable {
 ///     var rawValue: Int
 ///     func merging(with theirs: Views, from base: Views) throws(MergeConflict) -> Views {
-///         try merging(with: theirs, from: base, using: .rawValue(.sum))
+///         try merging(with: theirs, from: base, using: .rawValue(.sum()))
 ///     }
 /// }
 /// ```

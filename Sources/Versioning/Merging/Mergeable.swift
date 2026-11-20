@@ -10,7 +10,7 @@
 /// struct Views: RawRepresentable, Codable, Mergeable {
 ///     var rawValue: Int
 ///     func merging(with theirs: Views, from base: Views) throws(MergeConflict) -> Views {
-///         try merging(with: theirs, from: base, using: .rawValue(.sum))
+///         try merging(with: theirs, from: base, using: .rawValue(.sum()))
 ///     }
 /// }
 ///
@@ -64,22 +64,22 @@ extension Mergeable where Self: Equatable {
 }
 
 extension Mergeable where Self: Codable {
-    /// Merges field by field through the coding keys, as `.json` does.
+    /// Merges field by field through the coding keys, as `.json()` does.
     public func merging(with theirs: Self, from base: Self) throws(MergeConflict) -> Self {
-        try merging(with: theirs, from: base, using: .json)
+        try merging(with: theirs, from: base, using: .json())
     }
 
-    /// Without a base, only what both versions share merges, as `.json`
+    /// Without a base, only what both versions share merges, as `.json()`
     /// does.
     public func merging(with theirs: Self) throws(MergeConflict) -> Self {
-        try merging(with: theirs, using: .json)
+        try merging(with: theirs, using: .json())
     }
 }
 
 extension Mergeable where Self: Codable & Equatable {
-    /// Without a base, only what both versions share merges, as `.json`
+    /// Without a base, only what both versions share merges, as `.json()`
     /// does.
     public func merging(with theirs: Self) throws(MergeConflict) -> Self {
-        try merging(with: theirs, using: .json)
+        try merging(with: theirs, using: .json())
     }
 }

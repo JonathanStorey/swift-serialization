@@ -23,7 +23,7 @@
 /// expected, and `keep(_:)` keeps a side wherever one conflicts:
 ///
 /// ```swift
-/// try ours.merging(with: theirs, from: base, using: .byWord.keep(.ours))
+/// try ours.merging(with: theirs, from: base, using: .byWord().keep(.ours))
 /// ```
 public protocol MergeStrategy<Value>: Sendable {
     /// The type merged. It need not be `Sendable`, so a strategy can merge
