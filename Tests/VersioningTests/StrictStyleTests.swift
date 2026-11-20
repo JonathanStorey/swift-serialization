@@ -1,5 +1,5 @@
 import Testing
-@testable import Serialization
+@testable import Versioning
 
 @Suite struct StrictStyleTests {
     private let schema: JSONSchema = .object([

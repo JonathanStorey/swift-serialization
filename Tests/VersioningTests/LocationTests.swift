@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Serialization
+@testable import Versioning
 #if canImport(CoreLocation)
 import CoreLocation
 #endif

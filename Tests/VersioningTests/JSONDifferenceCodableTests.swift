@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Serialization
+@testable import Versioning
 
 @Suite struct JSONDifferenceCodableTests {
     @Test func encodesChangesInApplyOrder() throws {

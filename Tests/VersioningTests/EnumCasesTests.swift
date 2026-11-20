@@ -1,5 +1,5 @@
 import Testing
-@testable import Serialization
+@testable import Versioning
 
 private enum Size: String, Codable, CaseIterable {
     case small, medium, large

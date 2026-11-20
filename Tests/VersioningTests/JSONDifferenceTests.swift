@@ -1,5 +1,5 @@
 import Testing
-@testable import Serialization
+@testable import Versioning
 
 private typealias Change = JSONDifference.Change
 

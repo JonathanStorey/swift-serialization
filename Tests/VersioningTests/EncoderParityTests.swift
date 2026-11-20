@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Serialization
+@testable import Versioning
 
 private enum Kind: String, Codable { case house, flat }
 private enum Rank: Int, Codable { case first = 1, second }

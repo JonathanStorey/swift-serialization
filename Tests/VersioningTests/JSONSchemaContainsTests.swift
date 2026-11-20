@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Serialization
+@testable import Versioning
 
 private enum Size: Int, Codable, CaseIterable { case small = 1, large = 2 }
 private enum Tone: String, Codable, CaseIterable { case warm, cool }

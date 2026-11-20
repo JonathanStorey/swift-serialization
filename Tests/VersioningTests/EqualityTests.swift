@@ -1,5 +1,5 @@
 import Testing
-@testable import Serialization
+@testable import Versioning
 
 // Objects and schema properties are stored in order but compare and hash
 // without regard to it, like `Dictionary`. Arrays stay ordered.

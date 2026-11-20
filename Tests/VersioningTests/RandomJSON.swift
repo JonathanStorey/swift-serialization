@@ -1,4 +1,4 @@
-@testable import Serialization
+@testable import Versioning
 
 /// A small seeded generator, so randomized tests repeat exactly.
 struct SplitMix64: RandomNumberGenerator {
