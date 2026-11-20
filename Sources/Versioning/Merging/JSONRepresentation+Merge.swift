@@ -33,11 +33,13 @@ extension JSONRepresentation {
     /// such as for a key the schema does not declare, merges objects key by
     /// key and arrays element by element.
     func merging(_ theirs: JSONRepresentation, base: JSONRepresentation?, under schema: JSONSchema?, at path: Path, conflicts: inout [Path]) -> JSONRepresentation {
+        // Changes are found by value, including in keys the schema does not
+        // declare, so neither side's changes are lost.
         if let base {
-            if theirs.isEquivalent(to: base, under: schema) { return self }
-            if isEquivalent(to: base, under: schema) { return theirs }
+            if theirs.isEquivalent(to: base) { return self }
+            if isEquivalent(to: base) { return theirs }
         }
-        if isEquivalent(to: theirs, under: schema) { return self }
+        if isEquivalent(to: theirs) { return self }
 
         // Both sides changed it, differently.
         switch (schema?.flattened, self, theirs) {
@@ -81,9 +83,9 @@ private extension JSONRepresentation {
             let value: JSONRepresentation?
             if let base {
                 let original = base[key] ?? missing
-                if rhs.isEquivalent(to: original, under: schema) {
+                if rhs.isEquivalent(to: original) {
                     value = mine
-                } else if lhs.isEquivalent(to: original, under: schema) {
+                } else if lhs.isEquivalent(to: original) {
                     value = yours
                 } else if let lhs, let rhs {
                     value = lhs.merging(rhs, base: original, under: schema, at: keyPath, conflicts: &conflicts)
@@ -144,10 +146,10 @@ private extension JSONRepresentation {
 
 private extension Optional<JSONRepresentation> {
     /// Whether both are missing, or both are present and equivalent.
-    func isEquivalent(to other: JSONRepresentation?, under schema: JSONSchema?) -> Bool {
+    func isEquivalent(to other: JSONRepresentation?) -> Bool {
         switch (self, other) {
         case (nil, nil): true
-        case let (lhs?, rhs?): lhs.isEquivalent(to: rhs, under: schema)
+        case let (lhs?, rhs?): lhs.isEquivalent(to: rhs)
         default: false
         }
     }
