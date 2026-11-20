@@ -26,9 +26,15 @@ extension JSONRepresentation {
     /// not valid JSON or an object repeats a key, since `JSONDecoder` would
     /// otherwise tolerate or silently drop them.
     public func decode<T: Decodable>(_ type: T.Type = T.self) throws -> T {
+        try decode(type, userInfo: [:])
+    }
+
+    /// Decodes `T` as `decode(_:)` does, handing `userInfo` to the decoder.
+    func decode<T: Decodable>(_ type: T.Type, userInfo: [CodingUserInfoKey: any Sendable]) throws -> T {
         try validate(codingPath: [])
         let decoder = JSONDecoder()
         decoder.nonConformingFloatDecodingStrategy = .convertFromString(positiveInfinity: "Infinity", negativeInfinity: "-Infinity", nan: "NaN")
+        for (key, value) in userInfo { decoder.userInfo[key] = value }
         return try decoder.decode(T.self, from: Data(description.utf8))
     }
 }

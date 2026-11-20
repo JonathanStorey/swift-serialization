@@ -1,7 +1,7 @@
 /// A type that merges with another version of itself.
 ///
 /// A `Codable` type conforms with nothing to write: it merges field by
-/// field through its coding keys, as ``Merge`` does. Any type can
+/// field through its coding keys, as ``PropertyMerge`` does. Any type can
 /// implement the merge with a strategy instead, or by hand.
 ///
 /// ```swift

@@ -62,9 +62,9 @@ extension MergeStrategy {
         Self(favoring: side)
     }
 
-    /// ``Merge``: property by property, keeping the `favoring` side only at
+    /// ``PropertyMerge``: property by property, keeping the `favoring` side only at
     /// each conflicting value, and every other change from both sides.
-    public static func byProperty<V: Codable>(favoring side: KeepMerge<V>? = nil) -> Self where Self == Merge<V> {
+    public static func byProperty<V: Codable>(favoring side: KeepMerge<V>? = nil) -> Self where Self == PropertyMerge<V> {
         Self(favoring: side)
     }
 

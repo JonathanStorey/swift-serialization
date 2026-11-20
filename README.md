@@ -233,7 +233,7 @@ changed it, keep that side.
 | `DictionaryKeyedMerge` | `.byKey()` | any `Dictionary` | key by key | yes |
 | `RangeReplaceableCollectionElementMerge` | `.byElement()` | arrays, `String` | element by element, like lines | yes |
 | `StringWordMerge` | `.byWord()` | `String` | word by word | yes |
-| `Merge` | `.byProperty()` | any `Codable` | property by property, guided by its schema | no |
+| `PropertyMerge` | `.byProperty()` | any `Codable` | property by property, each `Mergeable` property by its own merge | no |
 | `RawValueMerge` | `.rawValue(_:)` | any `RawRepresentable` | its raw value, by another strategy | as that strategy |
 
 The dot syntax works wherever a strategy is expected. Each strategy that can
@@ -252,7 +252,8 @@ other change from both sides.
 
 A type that merges with another version of itself conforms to `Mergeable`. A
 `Codable` type has nothing to write: it merges field by field, as `.byProperty()`
-does. Any type can name a strategy instead, and a caller can choose one for a
+does. Wherever both sides changed a property whose type is `Mergeable`, at any
+depth, that type's own merge decides, so a `Views` property in a `Note` sums. Any type can name a strategy instead, and a caller can choose one for a
 single merge:
 
 ```swift
@@ -287,12 +288,12 @@ for path in conflicts {
 }
 ```
 
-`Merge` does the same for a `Codable` value. It throws on a
+`PropertyMerge` does the same for a `Codable` value. It throws on a
 conflict, or keeps the named side at each one:
 
 ```swift
-try Merge<Note>().merge(base: base, ours: ours, theirs: theirs)
-try Merge<Note>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
+try PropertyMerge<Note>().merge(base: base, ours: ours, theirs: theirs)
+try PropertyMerge<Note>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
 ```
 
 ## CloudKit records
