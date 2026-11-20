@@ -1,19 +1,28 @@
 /// Merges a collection element by element, like a three-way merge of
 /// lines: an element either side removed is removed, and what each side
 /// inserted goes where it was inserted, ours first. Elements match by `==`,
-/// so an element both sides replaced differently conflicts. A `String`
+/// so an element both sides replaced differently conflicts, unless `favoring` names a side. A `String`
 /// merges character by character. Needs a base.
 public struct RangeReplaceableCollectionElementMerge<Value: RangeReplaceableCollection & Sendable>: MergeStrategy
 where Value.Element: Equatable {
-    public init() {}
+    /// The side kept wherever the merge conflicts, or `nil` to throw.
+    public var favoring: KeepMerge<Value>?
+
+    public init(favoring: KeepMerge<Value>? = nil) {
+        self.favoring = favoring
+    }
 
     public func merge(base: Value, ours: Value, theirs: Value) throws(MergeConflict) -> Value {
-        Value(try Array(ours).mergingElements(with: Array(theirs), from: Array(base)))
+        try favoring.resolving(ours: ours, theirs: theirs) { () throws(MergeConflict) in
+            Value(try Array(ours).mergingElements(with: Array(theirs), from: Array(base)))
+        }
     }
 
     public func merge(ours: Value, theirs: Value) throws(MergeConflict) -> Value {
-        guard ours.elementsEqual(theirs) else { throw MergeConflict() }
-        return ours
+        try favoring.resolving(ours: ours, theirs: theirs) { () throws(MergeConflict) in
+            guard ours.elementsEqual(theirs) else { throw MergeConflict() }
+            return ours
+        }
     }
 }
 

@@ -3,7 +3,7 @@
 /// it, objects merge key by key, a `Set` by membership, a `Dictionary` by
 /// key and an array element by element. The result must decode.
 ///
-/// Without `onConflict`, any value both sides changed differently throws.
+/// Without `favoring`, any value both sides changed differently throws.
 /// With it, every change that does not conflict still applies, from both
 /// sides, and each conflicting value takes the named side, as
 /// `git merge -X theirs` does. If the merge cannot decode, the whole named
@@ -11,19 +11,18 @@
 ///
 /// ```swift
 /// try JSONMerge<Note>().merge(base: base, ours: mine, theirs: yours)
-/// try JSONMerge<Note>(onConflict: .theirs).merge(base: base, ours: mine, theirs: yours)
+/// try JSONMerge<Note>(favoring: .theirs).merge(base: base, ours: mine, theirs: yours)
 /// ```
 ///
 /// It encodes and decodes on every merge, which suits syncing better than
 /// tight loops. To see which paths conflict, call
 /// ``JSONRepresentation/merging(_:base:under:)`` directly.
 public struct JSONMerge<Value: Codable>: MergeStrategy {
-    let onConflict: KeepMerge<Value>?
+    /// The side kept at each conflicting value, or `nil` to throw.
+    public var favoring: KeepMerge<Value>?
 
-    /// A merge that throws on any conflict, or keeps the `onConflict` side
-    /// at each one.
-    public init(onConflict: KeepMerge<Value>? = nil) {
-        self.onConflict = onConflict
+    public init(favoring: KeepMerge<Value>? = nil) {
+        self.favoring = favoring
     }
 
     public func merge(base: Value, ours: Value, theirs: Value) throws(MergeConflict) -> Value {
@@ -48,15 +47,15 @@ private extension JSONMerge {
             var conflicts: [JSONRepresentation.Path] = []
             var merged = mine.merging(other, base: original, under: schema, at: [], conflicts: &conflicts)
             if !conflicts.isEmpty {
-                guard let onConflict else { throw MergeConflict() }
-                if case .theirs = onConflict {
+                guard let favoring else { throw MergeConflict() }
+                if case .theirs = favoring {
                     for path in conflicts { merged[path] = other[path] }
                 }
             }
             return try merged.decode(Value.self)
         } catch {
-            guard let onConflict else { throw MergeConflict() }
-            return try onConflict.merge(ours: ours, theirs: theirs)
+            guard let favoring else { throw MergeConflict() }
+            return try favoring.merge(ours: ours, theirs: theirs)
         }
     }
 }

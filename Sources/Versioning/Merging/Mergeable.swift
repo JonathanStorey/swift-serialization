@@ -15,7 +15,7 @@
 /// }
 ///
 /// let merged = try ours.merging(with: theirs, from: base)
-/// let favoringTheirs = try ours.merging(with: theirs, from: base, using: .json(onConflict: .theirs))
+/// let favoringTheirs = try ours.merging(with: theirs, from: base, using: .json(favoring: .theirs))
 /// ```
 public protocol Mergeable {
     /// This version merged with `theirs`, knowing their common ancestor.

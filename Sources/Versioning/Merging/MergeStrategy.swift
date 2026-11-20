@@ -20,10 +20,11 @@
 /// A strategy throws ``MergeConflict`` when the versions cannot be merged.
 ///
 /// The package's strategies have dot syntax wherever a strategy is
-/// expected, and `keep(_:)` keeps a side wherever one conflicts:
+/// expected. Each one that can conflict takes `favoring:`, the side kept
+/// wherever it does:
 ///
 /// ```swift
-/// try ours.merging(with: theirs, from: base, using: .byWord().keep(.ours))
+/// try ours.merging(with: theirs, from: base, using: .byWord(favoring: .ours))
 /// ```
 public protocol MergeStrategy<Value>: Sendable {
     /// The type merged. It need not be `Sendable`, so a strategy can merge

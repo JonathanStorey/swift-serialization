@@ -233,11 +233,22 @@ changed it, keep that side.
 | `DictionaryKeyedMerge` | `.byKey()` | any `Dictionary` | key by key | yes |
 | `RangeReplaceableCollectionElementMerge` | `.byElement()` | arrays, `String` | element by element, like lines | yes |
 | `StringWordMerge` | `.byWord()` | `String` | word by word | yes |
-| `JSONMerge` | `.json()`, `.json(onConflict:)` | any `Codable` | node by node, guided by its schema | no |
+| `JSONMerge` | `.json()` | any `Codable` | node by node, guided by its schema | no |
 | `RawValueMerge` | `.rawValue(_:)` | any `RawRepresentable` | its raw value, by another strategy | as that strategy |
 
-The dot syntax works wherever a strategy is expected. `keep(_:)` keeps a side
-wherever a strategy conflicts, as in `.byWord().keep(.ours)`.
+The dot syntax works wherever a strategy is expected. Each strategy that can
+conflict (`.sum()`, `.byMembership()`, `.byKey()`, `.byElement()`, `.byWord()`
+and `.json()`) holds a settable `favoring` side, kept wherever it conflicts:
+
+```swift
+try ours.merging(with: theirs, from: base, using: .byWord(favoring: .ours))
+
+var strategy = StringWordMerge<String>()
+strategy.favoring = .theirs
+```
+
+`.json(favoring:)` keeps the side only at each conflicting value, and every
+other change from both sides.
 
 A type that merges with another version of itself conforms to `Mergeable`. A
 `Codable` type has nothing to write: it merges field by field, as `.json()`
@@ -258,7 +269,7 @@ struct Views: RawRepresentable, Codable, Mergeable {
 }
 
 let merged = try ours.merging(with: theirs, from: base)
-let favoringTheirs = try ours.merging(with: theirs, from: base, using: .json(onConflict: .theirs))
+let favoringTheirs = try ours.merging(with: theirs, from: base, using: .json(favoring: .theirs))
 ```
 
 ### Merging JSON
@@ -281,7 +292,7 @@ conflict, or keeps the named side at each one:
 
 ```swift
 try JSONMerge<Note>().merge(base: base, ours: ours, theirs: theirs)
-try JSONMerge<Note>(onConflict: .theirs).merge(base: base, ours: ours, theirs: theirs)
+try JSONMerge<Note>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
 ```
 
 ## CloudKit records

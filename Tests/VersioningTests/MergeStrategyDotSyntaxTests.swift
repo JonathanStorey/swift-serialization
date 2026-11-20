@@ -46,11 +46,24 @@ private func merged<Value>(ours: Value, theirs: Value, using strategy: some Merg
         #expect(try merged(base: "the quick fox", ours: "the slow fox", theirs: "the quick dog", using: .byWord()) == "the slow dog")
     }
 
-    @Test func keepTakesTheSideOnlyWhereTheStrategyConflicts() throws {
-        #expect(try merged(base: "the quick fox", ours: "the slow fox", theirs: "the quick dog", using: .byWord().keep(.ours)) == "the slow dog")
-        #expect(try merged(base: "the quick fox", ours: "the slow fox", theirs: "the fast fox", using: .byWord().keep(.ours)) == "the slow fox")
-        #expect(try merged(ours: "ours", theirs: "theirs", using: .byWord().keep(.theirs)) == "theirs", "Without a base, the word merge conflicts.")
-        #expect(try merged(base: UInt8(100), ours: UInt8(200), theirs: UInt8(210), using: .sum().keep(.theirs)) == 210, "An overflow keeps theirs.")
+    @Test func favoringKeepsTheSideOnlyWhereTheStrategyConflicts() throws {
+        #expect(try merged(base: "the quick fox", ours: "the slow fox", theirs: "the quick dog", using: .byWord(favoring: .ours)) == "the slow dog")
+        #expect(try merged(base: "the quick fox", ours: "the slow fox", theirs: "the fast fox", using: .byWord(favoring: .ours)) == "the slow fox")
+        #expect(try merged(ours: "ours", theirs: "theirs", using: .byWord(favoring: .theirs)) == "theirs", "Without a base, the word merge conflicts.")
+        #expect(try merged(base: UInt8(100), ours: UInt8(200), theirs: UInt8(210), using: .sum(favoring: .theirs)) == 210, "An overflow keeps theirs.")
+        #expect(try merged(base: ["x": 1], ours: ["x": 2], theirs: ["x": 3], using: .byKey(favoring: .theirs)) == ["x": 3])
+        #expect(try merged(ours: Set(["a"]), theirs: Set(["b"]), using: .byMembership(favoring: .ours)) == ["a"])
+        #expect(try merged(base: [1], ours: [2], theirs: [3], using: .byElement(favoring: .ours)) == [2])
+        #expect(throws: MergeConflict()) {
+            try merged(base: "the quick fox", ours: "the slow fox", theirs: "the fast fox", using: .byWord())
+        }
+    }
+
+    @Test func favoringIsASettableProperty() throws {
+        var strategy = StringWordMerge<String>()
+        #expect(strategy.favoring == nil)
+        strategy.favoring = .theirs
+        #expect(try strategy.merge(base: "a b", ours: "a c", theirs: "a d") == "a d")
     }
 
     @Test func rawValueMergesTheRawValue() throws {
@@ -70,8 +83,7 @@ private func merged<Value>(ours: Value, theirs: Value, using strategy: some Merg
         ours.title = "Ours"
         theirs.title = "Theirs"
         ours.body = "Ours"
-        #expect(try merged(base: base, ours: ours, theirs: theirs, using: .json(onConflict: .theirs)) == Card(title: "Theirs", body: "Ours"))
-        #expect(try merged(base: base, ours: ours, theirs: theirs, using: .json().keep(.theirs)) == theirs)
+        #expect(try merged(base: base, ours: ours, theirs: theirs, using: .json(favoring: .theirs)) == Card(title: "Theirs", body: "Ours"))
         #expect(throws: MergeConflict()) { try merged(base: base, ours: ours, theirs: theirs, using: .json()) }
     }
 }
@@ -99,7 +111,7 @@ private func merged<Value>(ours: Value, theirs: Value, using strategy: some Merg
         ours.title = "Ours"
         theirs.title = "Theirs"
         #expect(throws: MergeConflict()) { try ours.merging(with: theirs, from: base) }
-        #expect(try ours.merging(with: theirs, from: base, using: .json(onConflict: .theirs)).title == "Theirs")
+        #expect(try ours.merging(with: theirs, from: base, using: .json(favoring: .theirs)).title == "Theirs")
         #expect(try ours.merging(with: theirs, using: .keep(.ours)) == ours)
     }
 }
