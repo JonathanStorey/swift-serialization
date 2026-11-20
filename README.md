@@ -203,6 +203,22 @@ Applying it to `stored` gives a value that `Settings` decodes the same as
 `JSONDifference` is `Codable`, `Hashable` and `Sendable`. It encodes as an
 array of changes, and its `description` is the readable form shown above.
 
+## Merging
+
+A `MergeStrategy` decides how a value merges when both sides changed it, and
+throws `MergeConflict` when it cannot.
+
+```swift
+struct LongerMerge: MergeStrategy {
+    func merge(base: String, ours: String, theirs: String) throws(MergeConflict) -> String {
+        ours.count >= theirs.count ? ours : theirs
+    }
+}
+```
+
+Without a base, only equal values merge, unless the strategy implements
+`merge(ours:theirs:)`.
+
 ## CloudKit records
 
 ### References
