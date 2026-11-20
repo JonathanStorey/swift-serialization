@@ -1,7 +1,7 @@
 /// A type that merges with another version of itself.
 ///
 /// A `Codable` type conforms with nothing to write: it merges field by
-/// field through its coding keys, as ``PropertyMerge`` does. Any type can
+/// field, as ``DefaultMergeStrategy`` does. Any type can
 /// implement the merge with a strategy instead, or by hand.
 ///
 /// ```swift
@@ -15,7 +15,7 @@
 /// }
 ///
 /// let merged = try ours.merging(with: theirs, from: base)
-/// let favoringTheirs = try ours.merging(with: theirs, from: base, using: .byProperty(favoring: .theirs))
+/// let favoringTheirs = try ours.merging(with: theirs, from: base, using: .favoring(.theirs))
 /// ```
 public protocol Mergeable {
     /// This version merged with `theirs`, knowing their common ancestor.
@@ -64,22 +64,22 @@ extension Mergeable where Self: Equatable {
 }
 
 extension Mergeable where Self: Codable {
-    /// Merges field by field through the coding keys, as `.byProperty()` does.
+    /// Merges field by field, as ``DefaultMergeStrategy`` does.
     public func merging(with theirs: Self, from base: Self) throws(MergeConflict) -> Self {
-        try merging(with: theirs, from: base, using: .byProperty())
+        try merging(with: theirs, from: base, using: DefaultMergeStrategy())
     }
 
-    /// Without a base, only what both versions share merges, as `.byProperty()`
-    /// does.
+    /// Without a base, only what both versions share merges, as
+    /// ``DefaultMergeStrategy`` does.
     public func merging(with theirs: Self) throws(MergeConflict) -> Self {
-        try merging(with: theirs, using: .byProperty())
+        try merging(with: theirs, using: DefaultMergeStrategy())
     }
 }
 
 extension Mergeable where Self: Codable & Equatable {
-    /// Without a base, only what both versions share merges, as `.byProperty()`
-    /// does.
+    /// Without a base, only what both versions share merges, as
+    /// ``DefaultMergeStrategy`` does.
     public func merging(with theirs: Self) throws(MergeConflict) -> Self {
-        try merging(with: theirs, using: .byProperty())
+        try merging(with: theirs, using: DefaultMergeStrategy())
     }
 }

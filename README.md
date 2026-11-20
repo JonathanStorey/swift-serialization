@@ -234,12 +234,13 @@ changed it, keep that side.
 | `RangeReplaceableCollectionElementMerge` | `.byElement()` | arrays, `String` | element by element, like lines | yes |
 | `StringWordMerge` | `.byWord()` | `String` | word by word | yes |
 | `IdentifiedElementMerge` | `.byID()` | arrays of `Identifiable & Codable` | element by `id`, each by its own merge | no |
-| `PropertyMerge` | `.byProperty()` | any `Codable` | property by property, each `Mergeable` property by its own merge | no |
+| `PropertyMerge` | `.byProperty()` | any `Codable` | property by property, by the encoded shape | no |
+| `DefaultMergeStrategy` | `.favoring(_:)` | any `Codable` | property by property, each property by its type's own rules | no |
 | `RawValueMerge` | `.rawValue(_:)` | any `RawRepresentable` | its raw value, by another strategy | as that strategy |
 
 The dot syntax works wherever a strategy is expected. Each strategy that can
 conflict (`.sum()`, `.byMembership()`, `.byKey()`, `.byElement()`, `.byWord()`,
-`.byID()` and `.byProperty()`) holds a settable `favoring` side, kept wherever it conflicts:
+`.byID()`, `.byProperty()` and `.favoring(_:)`) holds a settable `favoring` side, kept wherever it conflicts:
 
 ```swift
 try ours.merging(with: theirs, from: base, using: .byWord(favoring: .ours))
@@ -248,12 +249,14 @@ var strategy = StringWordMerge<String>()
 strategy.favoring = .theirs
 ```
 
-`.byProperty(favoring:)` keeps the side only at each conflicting value, and every
-other change from both sides.
+`.byProperty(favoring:)` and `.favoring(_:)` keep the side only at each
+conflicting value, and every other change from both sides. `.byProperty()` reads
+only the encoded shape. `DefaultMergeStrategy` also lets each property's type
+decide, and is what a `Codable` `Mergeable` type uses by default.
 
 A type that merges with another version of itself conforms to `Mergeable`. A
-`Codable` type has nothing to write: it merges field by field, as `.byProperty()`
-does. Wherever both sides changed a property whose type is `Mergeable`, at any
+`Codable` type has nothing to write: it merges with `DefaultMergeStrategy`,
+field by field. Wherever both sides changed a property whose type is `Mergeable`, at any
 depth, that type's own merge decides, so a `Views` property in a `Note` sums.
 An array or set of `Identifiable` elements merges by `id`, as `.byID()` does,
 and a dictionary merges by key, whatever its key type, each value by its own
@@ -274,7 +277,7 @@ struct Views: RawRepresentable, Codable, Mergeable {
 }
 
 let merged = try ours.merging(with: theirs, from: base)
-let favoringTheirs = try ours.merging(with: theirs, from: base, using: .byProperty(favoring: .theirs))
+let favoringTheirs = try ours.merging(with: theirs, from: base, using: .favoring(.theirs))
 ```
 
 ### Merging JSON

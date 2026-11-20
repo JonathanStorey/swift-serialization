@@ -1,9 +1,12 @@
-/// Merges a value property by property, and each property's own
-/// properties the same way. A property only one side changed keeps that
-/// side. Where both changed one whose type is ``Mergeable``, that type's
-/// own merge decides, so a `Views` counter can sum. Otherwise, guided by
-/// the value's ``JSONSchema``, a `Set` merges by membership, a `Dictionary`
-/// by key and an array element by element. The result must decode.
+/// Merges a `Codable` value property by property, through its coding keys,
+/// guided by its ``JSONSchema``: a property only one side changed keeps
+/// that side, and where both changed it, objects merge key by key, a `Set`
+/// by membership, a `Dictionary` by key and an array element by element.
+/// The result must decode.
+///
+/// It reads only the encoded shape, never a property's type. To let each
+/// property's type decide, as a ``Mergeable`` counter or an `Identifiable`
+/// list would, use ``DefaultMergeStrategy``.
 ///
 /// Without `favoring`, any value both sides changed differently throws.
 /// With it, every change that does not conflict still applies, from both
@@ -31,7 +34,7 @@ public struct PropertyMerge<Value>: Sendable {
 extension PropertyMerge: MergeStrategy where Value: Codable {
     public func merge(base: Value, ours: Value, theirs: Value) throws(MergeConflict) -> Value {
         try favoring.resolving(ours: ours, theirs: theirs) { () throws(MergeConflict) in
-            try Self.decoded { try PropertyMergeContext(ours, theirs, base: JSONRepresentation(base), favoring: favoring) }
+            try Self.decoded { try MergeContext(ours, theirs, base: JSONRepresentation(base), favoring: favoring, readingTypes: false) }
         }
     }
 
@@ -39,12 +42,12 @@ extension PropertyMerge: MergeStrategy where Value: Codable {
     /// ``JSONRepresentation/merging(_:base:under:)``.
     public func merge(ours: Value, theirs: Value) throws(MergeConflict) -> Value {
         try favoring.resolving(ours: ours, theirs: theirs) { () throws(MergeConflict) in
-            try Self.decoded { try PropertyMergeContext(ours, theirs, base: nil, favoring: favoring) }
+            try Self.decoded { try MergeContext(ours, theirs, base: nil, favoring: favoring, readingTypes: false) }
         }
     }
 
     /// The value the context decodes, with any failure as a conflict.
-    private static func decoded(_ context: () throws -> PropertyMergeContext) throws(MergeConflict) -> Value {
+    private static func decoded(_ context: () throws -> MergeContext) throws(MergeConflict) -> Value {
         do {
             return try context().decode(Value.self)
         } catch {

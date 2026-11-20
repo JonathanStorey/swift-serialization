@@ -86,7 +86,7 @@ private let a = Item(id: 1, title: "a"), b = Item(id: 2, title: "b")
     }
 }
 
-@Suite struct PropertyMergeElementTests {
+@Suite struct DefaultMergeStrategyElementTests {
     @Test func anArrayOfIdentifiableElementsMergesByID() throws {
         let base = Board()
         var ours = base, theirs = base
@@ -122,7 +122,7 @@ private let a = Item(id: 1, title: "a"), b = Item(id: 2, title: "b")
         ours.byCode[Code(value: 1)] = nil
         theirs.byCode[Code(value: 1)]?.count = 9
         #expect(throws: MergeConflict()) { try ours.merging(with: theirs, from: base) }
-        #expect(try PropertyMerge<Board>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs).byCode == theirs.byCode)
+        #expect(try DefaultMergeStrategy<Board>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs).byCode == theirs.byCode)
     }
 
     @Test func aSetOfIdentifiableElementsMergesEditsByID() throws {

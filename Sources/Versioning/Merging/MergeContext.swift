@@ -1,23 +1,25 @@
 import Foundation
 
-/// One property merge: the three encoded versions, their merge as JSON, and
-/// the paths a `Mergeable` property's own merge settled. Decoding through it
-/// gives each `Mergeable` property its own merge.
+/// One merge of a `Codable` value: the three encoded versions, their merge
+/// as JSON, and the paths that a property's own rules settled. Reading
+/// types, decoding through it gives each property the rules of its type.
 ///
 /// It lives for one synchronous decode, so its mutable state is never
 /// shared across threads.
-final class PropertyMergeContext: @unchecked Sendable {
+final class MergeContext: @unchecked Sendable {
     private let ours: JSONRepresentation
     private let theirs: JSONRepresentation
     private let base: JSONRepresentation?
     private let merged: JSONRepresentation
     private let conflicts: [JSONRepresentation.Path]
     private let side: KeepMerge<Void>?
+    private let readsTypes: Bool
     private var settled: [JSONRepresentation.Path] = []
 
     /// Merges the encoded versions as JSON, keeping the `favoring` side at
-    /// each conflict.
-    init<Value: Codable>(_ ours: Value, _ theirs: Value, base: JSONRepresentation?, favoring side: KeepMerge<Value>?) throws {
+    /// each conflict. Reading types, a property's type can settle a
+    /// conflict by its own rules.
+    init<Value: Codable>(_ ours: Value, _ theirs: Value, base: JSONRepresentation?, favoring side: KeepMerge<Value>?, readingTypes readsTypes: Bool) throws {
         let mine = try JSONRepresentation(ours)
         let other = try JSONRepresentation(theirs)
         // A type the schema cannot describe still merges by shape.
@@ -33,12 +35,13 @@ final class PropertyMergeContext: @unchecked Sendable {
         self.merged = merged
         self.conflicts = conflicts
         self.side = side?.retyped()
+        self.readsTypes = readsTypes
     }
 
     /// The merged value. Without a favored side, a conflict that no
     /// `Mergeable` property settled throws.
     func decode<Value: Decodable>(_ type: Value.Type) throws -> Value {
-        let value = try merged.decode(Root<Value>.self, userInfo: [.propertyMerge: self]).value
+        let value = readsTypes ? try merged.decode(Root<Value>.self, userInfo: [.propertyMerge: self]).value : try merged.decode(Value.self)
         let unsettled = conflicts.contains { conflict in !settled.contains { conflict.starts(with: $0) } }
         if unsettled, side == nil { throw MergeConflict() }
         return value
@@ -51,7 +54,7 @@ final class PropertyMergeContext: @unchecked Sendable {
     /// elements. A
     /// conflict throws, unless a side is favored, which leaves the JSON merge.
     func mergedValue<T: Decodable>(_ type: T.Type, at path: JSONRepresentation.Path) throws(MergeConflict) -> T? {
-        guard bothChanged(at: path) else { return nil }
+        guard readsTypes, bothChanged(at: path) else { return nil }
         let side = side
         let merge: (Any, Any, Any?) throws(MergeConflict) -> Any?
         if let mergeable = T.self as? any Mergeable.Type {
@@ -85,7 +88,7 @@ final class PropertyMergeContext: @unchecked Sendable {
     /// Whether both sides changed an object at `path`, so its properties
     /// merge one by one.
     func bothChangedObject(at path: JSONRepresentation.Path) -> Bool {
-        guard case .object? = ours[path], case .object? = theirs[path] else { return false }
+        guard readsTypes, case .object? = ours[path], case .object? = theirs[path] else { return false }
         return bothChanged(at: path)
     }
 
@@ -200,7 +203,7 @@ private extension JSONRepresentation {
 }
 
 private extension CodingUserInfoKey {
-    static let propertyMerge = CodingUserInfoKey(rawValue: "Versioning.PropertyMergeContext")!
+    static let propertyMerge = CodingUserInfoKey(rawValue: "Versioning.MergeContext")!
 }
 
 // MARK: - Decoder
@@ -211,7 +214,7 @@ private struct Root<Value: Decodable>: Decodable {
     let value: Value
 
     init(from decoder: any Decoder) throws {
-        guard let context = decoder.userInfo[.propertyMerge] as? PropertyMergeContext else { throw MergeConflict() }
+        guard let context = decoder.userInfo[.propertyMerge] as? MergeContext else { throw MergeConflict() }
         value = try Value(from: MergingDecoder(decoder: decoder, path: [], context: context))
     }
 }
@@ -219,7 +222,7 @@ private struct Root<Value: Decodable>: Decodable {
 private struct MergingDecoder: Decoder {
     let decoder: any Decoder
     let path: JSONRepresentation.Path
-    let context: PropertyMergeContext
+    let context: MergeContext
 
     var codingPath: [any CodingKey] { decoder.codingPath }
     var userInfo: [CodingUserInfoKey: Any] { decoder.userInfo }
@@ -243,7 +246,7 @@ private struct MergingDecoder: Decoder {
 private struct MergingContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
     let container: KeyedDecodingContainer<Key>
     let path: JSONRepresentation.Path
-    let context: PropertyMergeContext
+    let context: MergeContext
 
     var codingPath: [any CodingKey] { container.codingPath }
     var allKeys: [Key] { container.allKeys }
