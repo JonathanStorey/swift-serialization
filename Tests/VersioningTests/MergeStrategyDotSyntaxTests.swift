@@ -84,7 +84,7 @@ private func merged<Value>(ours: Value, theirs: Value, using strategy: some Merg
         theirs.title = "Theirs"
         ours.body = "Ours"
         #expect(try merged(base: base, ours: ours, theirs: theirs, using: .byProperty(favoring: .theirs)) == Card(title: "Theirs", body: "Ours"))
-        #expect(throws: MergeConflict()) { try merged(base: base, ours: ours, theirs: theirs, using: .byProperty()) }
+        #expect(throws: MergeConflict.self) { try merged(base: base, ours: ours, theirs: theirs, using: .byProperty()) }
     }
 }
 
@@ -96,7 +96,7 @@ private func merged<Value>(ours: Value, theirs: Value, using strategy: some Merg
         theirs.body = "Theirs"
         #expect(try ours.merging(with: theirs, from: base) == Card(title: "Ours", body: "Theirs"))
         #expect(try base.merging(with: base) == base)
-        #expect(throws: MergeConflict()) { try ours.merging(with: theirs) }
+        #expect(throws: MergeConflict.self) { try ours.merging(with: theirs) }
     }
 
     @Test func aTypeMergesByTheStrategyItNames() throws {
@@ -110,8 +110,76 @@ private func merged<Value>(ours: Value, theirs: Value, using strategy: some Merg
         var ours = base, theirs = base
         ours.title = "Ours"
         theirs.title = "Theirs"
-        #expect(throws: MergeConflict()) { try ours.merging(with: theirs, from: base) }
+        #expect(throws: MergeConflict.self) { try ours.merging(with: theirs, from: base) }
         #expect(try ours.merging(with: theirs, from: base, using: .byProperty(favoring: .theirs)).title == "Theirs")
         #expect(try ours.merging(with: theirs, using: .keep(.ours)) == ours)
+    }
+}
+
+private struct Place: Codable, Equatable {
+    var city = "Oslo"
+    var floor = 1
+}
+
+private struct Listing: Codable, Equatable, Mergeable {
+    var title = "Title"
+    var body = "Body"
+    var place = Place()
+    var scores: [String: Int] = ["x": 1]
+    var views = Counter(rawValue: 1)
+}
+
+private struct Counter: RawRepresentable, Codable, Equatable, Mergeable {
+    var rawValue: Int
+
+    func merging(with theirs: Counter, from base: Counter) throws(MergeConflict) -> Counter {
+        try merging(with: theirs, from: base, using: .rawValue(.sum()))
+    }
+}
+
+@Suite struct MergeConflictPathTests {
+    @Test func aStrategyForOneValueConflictsAtTheWholeValue() {
+        #expect(MergeConflict().paths == [[]])
+        #expect(throws: MergeConflict(at: [[]])) { try NumericSumMerge<UInt8>().merge(base: 100, ours: 200, theirs: 200) }
+    }
+
+    @Test func theDefaultMergeReportsEveryConflictingProperty() throws {
+        let base = Listing()
+        var ours = base, theirs = base
+        ours.title = "Ours"
+        theirs.title = "Theirs"
+        ours.place.city = "Bergen"
+        theirs.place.city = "Tromsø"
+        ours.body = "Only ours"
+        #expect(throws: MergeConflict(at: [["title"], ["place", "city"]])) { try ours.merging(with: theirs, from: base) }
+    }
+
+    @Test func aMergeablePropertysConflictIsAtItsPath() throws {
+        let base = Listing()
+        var ours = base, theirs = base
+        ours.views = Counter(rawValue: .max)
+        theirs.views = Counter(rawValue: 2)
+        #expect(throws: MergeConflict(at: [["views"]])) { try ours.merging(with: theirs, from: base) }
+    }
+
+    @Test func aDictionaryConflictIsAtItsKey() throws {
+        #expect(throws: MergeConflict(at: [["a"], ["b"]])) {
+            try DictionaryKeyedMerge<String, Int>().merge(base: ["a": 1, "b": 1], ours: ["a": 2, "b": 2], theirs: ["a": 3])
+        }
+    }
+
+    @Test func anIdentifiedElementConflictIsAtItsPosition() throws {
+        struct Item: Identifiable, Codable, Equatable {
+            var id: Int
+            var title: String
+        }
+        let base = [Item(id: 1, title: "a"), Item(id: 2, title: "b")]
+        let ours = [Item(id: 1, title: "a"), Item(id: 2, title: "ours")]
+        let theirs = [Item(id: 1, title: "a"), Item(id: 2, title: "theirs")]
+        #expect(throws: MergeConflict(at: [[1, "title"]])) { try IdentifiedElementMerge<Item>().merge(base: base, ours: ours, theirs: theirs) }
+    }
+
+    @Test func insideNestsEachPath() {
+        #expect(MergeConflict(at: [["city"], []]).inside(["place"]) == MergeConflict(at: [["place", "city"], ["place"]]))
     }
 }

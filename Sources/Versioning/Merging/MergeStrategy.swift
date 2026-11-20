@@ -54,7 +54,50 @@ extension MergeStrategy where Value: Equatable {
 }
 
 /// Both sides changed a value differently, and the strategy cannot settle
-/// it. It carries nothing, as `CancellationError` does.
+/// it. It carries where, as a coding path carries where decoding failed.
+///
+/// Each path is relative to the merged value, and `[]` is the whole value.
+/// A strategy for one value, such as `.sum()`, conflicts at `[]`. One that
+/// merges parts, such as `.favoring(_:)` or `.byKey()`, reports every part
+/// that conflicts, so an app can ask about only those.
+///
+/// ```swift
+/// do {
+///     note = try ours.merging(with: theirs, from: base)
+/// } catch {
+///     error.paths   // [$.title, $.venue.city]
+/// }
+/// ```
 public struct MergeConflict: Error, Hashable, Sendable {
-    public init() {}
+    public typealias Path = JSONRepresentation.Path
+
+    /// Where the versions conflict, relative to the merged value.
+    public var paths: [Path]
+
+    /// A conflict at `paths`, by default the whole value.
+    public init(at paths: [Path] = [[]]) {
+        self.paths = paths
+    }
+
+    /// This conflict, with each path inside `path`.
+    public func inside(_ path: Path) -> MergeConflict {
+        MergeConflict(at: paths.map { path + $0 })
+    }
+}
+
+extension MergeConflict {
+    /// The result of `body`, or `nil` with its conflict's paths, inside
+    /// `path`, added to `paths`, so a merge can report every part that
+    /// conflicts rather than only the first.
+    static func collect<T>(into paths: inout [Path], at path: Path, _ body: () throws(MergeConflict) -> T) -> T? {
+        do {
+            return try body()
+        } catch let conflict as MergeConflict {
+            paths += conflict.inside(path).paths
+            return nil
+        } catch {
+            paths.append(path)
+            return nil
+        }
+    }
 }

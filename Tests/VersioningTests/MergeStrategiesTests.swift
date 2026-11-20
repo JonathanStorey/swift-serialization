@@ -128,10 +128,10 @@ private struct Tally: Mergeable, Equatable, Sendable {
 
     @Test func aDictionaryKeyBothChangedConflicts() throws {
         let strategy = DictionaryKeyedMerge<String, Int>()
-        #expect(throws: MergeConflict()) { try strategy.merge(base: ["a": 1], ours: ["a": 2], theirs: ["a": 3]) }
+        #expect(throws: MergeConflict.self) { try strategy.merge(base: ["a": 1], ours: ["a": 2], theirs: ["a": 3]) }
         #expect(try strategy.merge(base: ["a": 1], ours: ["a": 2], theirs: ["a": 2]) == ["a": 2])
         #expect(try strategy.merge(base: ["a": 1, "b": 1], ours: ["b": 1], theirs: ["a": 1, "b": 2]) == ["b": 2])
-        #expect(throws: MergeConflict()) { try strategy.merge(base: ["a": 1], ours: [:], theirs: ["a": 2]) }
+        #expect(throws: MergeConflict.self) { try strategy.merge(base: ["a": 1], ours: [:], theirs: ["a": 2]) }
     }
 
     @Test func mergeableMergesByItsOwnFunctions() throws {

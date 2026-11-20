@@ -15,6 +15,7 @@ final class MergeContext: @unchecked Sendable {
     private let side: KeepMerge<Void>?
     private let readsTypes: Bool
     private var settled: [JSONRepresentation.Path] = []
+    private var failed: [JSONRepresentation.Path] = []
 
     /// Merges the encoded versions as JSON, keeping the `favoring` side at
     /// each conflict. Reading types, a property's type can settle a
@@ -38,12 +39,12 @@ final class MergeContext: @unchecked Sendable {
         self.readsTypes = readsTypes
     }
 
-    /// The merged value. Without a favored side, a conflict that no
-    /// `Mergeable` property settled throws.
+    /// The merged value. Without a favored side, every conflict that no
+    /// property's own rules settled throws, together.
     func decode<Value: Decodable>(_ type: Value.Type) throws -> Value {
         let value = readsTypes ? try merged.decode(Root<Value>.self, userInfo: [.propertyMerge: self]).value : try merged.decode(Value.self)
-        let unsettled = conflicts.contains { conflict in !settled.contains { conflict.starts(with: $0) } }
-        if unsettled, side == nil { throw MergeConflict() }
+        let unsettled = conflicts.filter { conflict in !settled.contains { conflict.starts(with: $0) } }
+        if side == nil, !(unsettled + failed).isEmpty { throw MergeConflict(at: unsettled + failed) }
         return value
     }
 
@@ -51,9 +52,10 @@ final class MergeContext: @unchecked Sendable {
     /// has none, both sides did not change it, or a side lacks it. `T`'s
     /// rules are its own merge if it is `Mergeable`, a merge by key for a
     /// dictionary, or a merge by id for an array or set of `Identifiable`
-    /// elements. A
-    /// conflict throws, unless a side is favored, which leaves the JSON merge.
-    func mergedValue<T: Decodable>(_ type: T.Type, at path: JSONRepresentation.Path) throws(MergeConflict) -> T? {
+    /// elements. Where those rules conflict, the JSON merge stands, and
+    /// without a favored side the conflict's paths are kept to throw from
+    /// `decode(_:)`.
+    func mergedValue<T: Decodable>(_ type: T.Type, at path: JSONRepresentation.Path) -> T? {
         guard readsTypes, bothChanged(at: path) else { return nil }
         let side = side
         let merge: (Any, Any, Any?) throws(MergeConflict) -> Any?
@@ -79,10 +81,13 @@ final class MergeContext: @unchecked Sendable {
             guard let value = try merge(mine, other, original) as? T else { return nil }
             settled.append(path)
             return value
+        } catch let conflict as MergeConflict {
+            if side == nil { failed += conflict.inside(path).paths }
         } catch {
-            guard side != nil else { throw MergeConflict() }
-            return nil
+            if side == nil { failed.append(path) }
         }
+        settled.append(path)
+        return nil
     }
 
     /// Whether both sides changed an object at `path`, so its properties
@@ -223,7 +228,7 @@ private struct MergingContainer<Key: CodingKey>: KeyedDecodingContainerProtocol 
     func decode<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> T {
         var path = path
         path.append(.key(key.stringValue))
-        if let value = try context.mergedValue(T.self, at: path) { return value }
+        if let value = context.mergedValue(T.self, at: path) { return value }
         if context.bothChangedObject(at: path) {
             return try T(from: MergingDecoder(decoder: try container.superDecoder(forKey: key), path: path, context: context))
         }
