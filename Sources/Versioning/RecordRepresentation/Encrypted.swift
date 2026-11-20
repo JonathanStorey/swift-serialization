@@ -42,6 +42,28 @@ extension Encrypted: Decodable where Value: Decodable {
     }
 }
 
+extension Encrypted: RawRepresentable {
+    /// The value, the same as ``wrappedValue``, so a plain `Encrypted`
+    /// property works where a wrapper cannot, as in a SwiftData model.
+    public var rawValue: Value { wrappedValue }
+
+    public init(rawValue: Value) {
+        wrappedValue = rawValue
+    }
+}
+
+extension Encrypted: Mergeable where Value: Mergeable {
+    /// The values merged by their own merge, so encrypting a property never
+    /// changes how it merges.
+    public func merging(with theirs: Encrypted, from base: Encrypted) throws(MergeConflict) -> Encrypted {
+        Encrypted(wrappedValue: try wrappedValue.merging(with: theirs.wrappedValue, from: base.wrappedValue))
+    }
+
+    public func merging(with theirs: Encrypted) throws(MergeConflict) -> Encrypted {
+        Encrypted(wrappedValue: try wrappedValue.merging(with: theirs.wrappedValue))
+    }
+}
+
 extension KeyedDecodingContainer {
     public func decode<Wrapped: Decodable>(_ type: Encrypted<Wrapped?>.Type, forKey key: Key) throws -> Encrypted<Wrapped?> {
         try decodeIfPresent(type, forKey: key) ?? Encrypted(wrappedValue: nil)

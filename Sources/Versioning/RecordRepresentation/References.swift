@@ -121,6 +121,23 @@ extension References {
     }
 }
 
+extension References: Mergeable {
+    /// The ids merged element by element, so ids each side added are both
+    /// kept, in place, and an id one side removed is removed. The action is
+    /// the side that changed it, and how the list is stored is this
+    /// version's.
+    public func merging(with theirs: References, from base: References) throws(MergeConflict) -> References {
+        let ids = try RangeReplaceableCollectionElementMerge<[UUID]>().merge(base: base.wrappedValue, ours: wrappedValue, theirs: theirs.wrappedValue)
+        return References(wrappedValue: ids, action: action == base.action ? theirs.action : action, storage: storage, inverseName: inverseName)
+    }
+
+    /// Without a base, equal lists merge, and any others conflict.
+    public func merging(with theirs: References) throws(MergeConflict) -> References {
+        guard self == theirs else { throw MergeConflict() }
+        return self
+    }
+}
+
 extension References: Codable {
     public init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()

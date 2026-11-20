@@ -71,6 +71,24 @@ public struct Location: Codable, Hashable, Sendable {
     }
 }
 
+extension Location: Mergeable {
+    /// The side that changed the location, or the later measurement by
+    /// `timestamp` when both did. Two different measurements from the same
+    /// moment conflict.
+    public func merging(with theirs: Location, from base: Location) throws(MergeConflict) -> Location {
+        if theirs == base { return self }
+        if self == base { return theirs }
+        return try merging(with: theirs)
+    }
+
+    /// The later measurement by `timestamp`.
+    public func merging(with theirs: Location) throws(MergeConflict) -> Location {
+        if self == theirs { return self }
+        guard timestamp != theirs.timestamp else { throw MergeConflict() }
+        return timestamp > theirs.timestamp ? self : theirs
+    }
+}
+
 #if canImport(CoreLocation)
 extension Location {
     /// The location as a `CLLocation`, for CoreLocation and MapKit.

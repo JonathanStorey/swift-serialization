@@ -53,6 +53,43 @@ extension Asset: Codable {
     }
 }
 
+extension Asset: RawRepresentable {
+    /// The file holding the asset's bytes, the same as ``projectedValue``,
+    /// so a plain `Asset` property works where a wrapper cannot, as in a
+    /// SwiftData model.
+    public var rawValue: URL? { projectedValue }
+
+    public init(rawValue: URL?) {
+        projectedValue = rawValue
+    }
+}
+
+extension Asset: Mergeable {
+    /// The side that changed the file. Two files with the same bytes are the
+    /// same asset, so both sides saving the same bytes does not conflict,
+    /// and two different files do.
+    public func merging(with theirs: Asset, from base: Asset) throws(MergeConflict) -> Asset {
+        if theirs.holdsSameBytes(as: base) || holdsSameBytes(as: theirs) { return self }
+        if holdsSameBytes(as: base) { return theirs }
+        throw MergeConflict()
+    }
+
+    /// This asset, when both hold the same bytes.
+    public func merging(with theirs: Asset) throws(MergeConflict) -> Asset {
+        guard holdsSameBytes(as: theirs) else { throw MergeConflict() }
+        return self
+    }
+}
+
+private extension Asset {
+    /// Whether both point at the same file, or at files with the same bytes.
+    func holdsSameBytes(as other: Asset) -> Bool {
+        if projectedValue == other.projectedValue { return true }
+        guard let bytes = wrappedValue else { return false }
+        return bytes == other.wrappedValue
+    }
+}
+
 // Synthesized `Codable` calls these instead of the generic methods, so a
 // `nil` asset behaves like an optional property.
 extension KeyedDecodingContainer {

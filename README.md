@@ -496,6 +496,23 @@ takes no part in equality or hashing. Its value need not be `Codable`.
 @Transient var thumbnail: Image? = nil
 ```
 
+### Merging record values
+
+The record values bring their own merge, so a `Mergeable` model merges them
+by their rules with nothing to write:
+
+- `Asset` keeps the side that changed the file. Files with the same bytes
+  are the same asset, so only two different files conflict.
+- `Encrypted` merges its value by the value's own merge.
+- `Location` keeps the later measurement by `timestamp`.
+- `@References` merges its ids element by element, keeping both sides'
+  additions in place.
+
+`Asset` and `Encrypted` are also `RawRepresentable`, so where a property
+wrapper cannot go, as in a SwiftData model, a plain property holds the same
+value: `var attachment: Asset` with `rawValue: URL?`, or
+`var pin: Encrypted<Int>` with `rawValue: Int`.
+
 ## RecordSchema
 
 `RecordSchema(for:)` describes the fields a `Decodable` type stores in a
