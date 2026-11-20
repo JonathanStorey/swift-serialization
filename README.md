@@ -255,9 +255,7 @@ A type that merges with another version of itself conforms to `Mergeable`. A
 `Codable` type has nothing to write: it merges field by field, as `.byProperty()`
 does. Wherever both sides changed a property whose type is `Mergeable`, at any
 depth, that type's own merge decides, so a `Views` property in a `Note` sums.
-An array or set of `Identifiable` elements merges by `id`, as `.byID()` does, and
-an array of `Mergeable` elements merges each element both sides replaced in
-place by its own merge. Any type can name a strategy instead, and a caller can choose one for a
+An array or set of `Identifiable` elements merges by `id`, as `.byID()` does. Any type can name a strategy instead, and a caller can choose one for a
 single merge:
 
 ```swift

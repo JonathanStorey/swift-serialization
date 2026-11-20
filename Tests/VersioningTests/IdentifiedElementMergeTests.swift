@@ -25,18 +25,6 @@ private struct Board: Codable, Equatable, Mergeable {
     var counts: [Tally] = []
 }
 
-private struct Shelf: Codable, Equatable, Mergeable {
-    var counters: [Counter] = [Counter(rawValue: 1), Counter(rawValue: 2)]
-}
-
-private struct Counter: RawRepresentable, Codable, Equatable, Mergeable {
-    var rawValue: Int
-
-    func merging(with theirs: Counter, from base: Counter) throws(MergeConflict) -> Counter {
-        Counter(rawValue: rawValue + theirs.rawValue - base.rawValue)
-    }
-}
-
 private let a = Item(id: 1, title: "a"), b = Item(id: 2, title: "b")
 
 @Suite struct IdentifiedElementMergeTests {
@@ -115,13 +103,6 @@ private let a = Item(id: 1, title: "a"), b = Item(id: 2, title: "b")
         #expect(try ours.merging(with: theirs, from: base).tagged == [Item(id: 1, title: "A", done: true)])
     }
 
-    @Test func aMergeableElementReplacedInPlaceUsesItsOwnMerge() throws {
-        let base = Shelf()
-        var ours = base, theirs = base
-        ours.counters[1] = Counter(rawValue: 5)
-        theirs.counters[1] = Counter(rawValue: 4)
-        #expect(try ours.merging(with: theirs, from: base).counters == [Counter(rawValue: 1), Counter(rawValue: 7)])
-    }
 }
 
 private func merged<Value>(_ base: Value, _ ours: Value, _ theirs: Value, using strategy: some MergeStrategy<Value>) throws(MergeConflict) -> Value {
