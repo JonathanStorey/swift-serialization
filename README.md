@@ -222,32 +222,44 @@ Without a base, only equal values merge, unless the strategy implements
 A strategy decides only when both sides changed a value. Where only one side
 changed it, keep that side.
 
-| Strategy | Works with | Merges | Needs a base |
-| --- | --- | --- | --- |
-| `KeepMerge` (`.ours`, `.theirs`) | anything | the named side | no |
-| `ComparableMaximumMerge` | any `Comparable` | the larger | no |
-| `NumericSumMerge` | any `Numeric` | both changes added, as a counter | yes |
-| `BoolTrueWinsMerge` | `Bool` | `true` if either is | no |
-| `SetAlgebraMembershipMerge` | `Set`, any `OptionSet` | additions and removals from both | yes |
-| `SetAlgebraUnionMerge` | `Set`, any `OptionSet` | as membership, or every element without a base | no |
-| `DictionaryKeyedMerge` | any `Dictionary` | key by key | yes |
-| `RangeReplaceableCollectionElementMerge` | arrays, `String` | element by element, like lines | yes |
-| `StringWordMerge` | `String` | word by word | yes |
-| `JSONMerge` | any `Codable` | node by node, guided by its schema | no |
+| Strategy | Dot syntax | Works with | Merges | Needs a base |
+| --- | --- | --- | --- | --- |
+| `KeepMerge` | `.keep(.ours)`, `.keep(.theirs)` | anything | the named side | no |
+| `ComparableMaximumMerge` | `.maximum` | any `Comparable` | the larger | no |
+| `NumericSumMerge` | `.sum` | any `Numeric` | both changes added, as a counter | yes |
+| `BoolTrueWinsMerge` | `.trueWins` | `Bool` | `true` if either is | no |
+| `SetAlgebraMembershipMerge` | `.byMembership` | `Set`, any `OptionSet` | additions and removals from both | yes |
+| `SetAlgebraUnionMerge` | `.union` | `Set`, any `OptionSet` | as membership, or every element without a base | no |
+| `DictionaryKeyedMerge` | `.byKey()` | any `Dictionary` | key by key | yes |
+| `RangeReplaceableCollectionElementMerge` | `.byElement` | arrays, `String` | element by element, like lines | yes |
+| `StringWordMerge` | `.byWord` | `String` | word by word | yes |
+| `JSONMerge` | `.json`, `.json(onConflict:)` | any `Codable` | node by node, guided by its schema | no |
+| `RawValueMerge` | `.rawValue(_:)` | any `RawRepresentable` | its raw value, by another strategy | as that strategy |
 
-`AnyMergeStrategy` wraps any strategy, so it can be stored without making
-its owner generic, and names the strategies above with dot syntax: `.keep(_:)`,
-`.maximum`, `.sum`, `.trueWins`, `.byMembership`, `.union`, `.byKey()`,
-`.byElement`, `.byWord`, `.json` and `.json(onConflict:)`. End one with
-`keep(_:)` to keep a side wherever it conflicts.
+The dot syntax works wherever a strategy is expected. `keep(_:)` keeps a side
+wherever a strategy conflicts, as in `.byWord.keep(.ours)`.
+
+A type that merges with another version of itself conforms to `Mergeable`. A
+`Codable` type has nothing to write: it merges field by field, as `.json`
+does. Any type can name a strategy instead, and a caller can choose one for a
+single merge:
 
 ```swift
-let title: AnyMergeStrategy<String> = .byWord.keep(.ours)
-let count: AnyMergeStrategy<Int> = .sum.keep(.theirs)
-```
+struct Note: Codable, Mergeable {
+    var title = ""
+    var tags: Set<String> = []
+}
 
-A type that merges with another version of itself conforms to `Mergeable`
-and implements `merging(with:from:)`.
+struct Views: RawRepresentable, Codable, Mergeable {
+    var rawValue: Int
+    func merging(with theirs: Views, from base: Views) throws(MergeConflict) -> Views {
+        try merging(with: theirs, from: base, using: .rawValue(.sum))
+    }
+}
+
+let merged = try ours.merging(with: theirs, from: base)
+let favoringTheirs = try ours.merging(with: theirs, from: base, using: .json(onConflict: .theirs))
+```
 
 ### Merging JSON
 

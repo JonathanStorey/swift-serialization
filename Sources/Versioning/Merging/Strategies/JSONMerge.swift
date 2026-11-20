@@ -17,7 +17,7 @@
 /// It encodes and decodes on every merge, which suits syncing better than
 /// tight loops. To see which paths conflict, call
 /// ``JSONRepresentation/merging(_:base:under:)`` directly.
-public struct JSONMerge<Value: Codable & Sendable>: MergeStrategy {
+public struct JSONMerge<Value: Codable>: MergeStrategy {
     let onConflict: KeepMerge<Value>?
 
     /// A merge that throws on any conflict, or keeps the `onConflict` side

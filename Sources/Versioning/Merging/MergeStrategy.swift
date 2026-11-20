@@ -18,8 +18,17 @@
 /// ```
 ///
 /// A strategy throws ``MergeConflict`` when the versions cannot be merged.
+///
+/// The package's strategies have dot syntax wherever a strategy is
+/// expected, and `keep(_:)` keeps a side wherever one conflicts:
+///
+/// ```swift
+/// try ours.merging(with: theirs, from: base, using: .byWord.keep(.ours))
+/// ```
 public protocol MergeStrategy<Value>: Sendable {
-    associatedtype Value: Sendable
+    /// The type merged. It need not be `Sendable`, so a strategy can merge
+    /// a class such as a SwiftData model.
+    associatedtype Value
 
     /// The merged value, knowing the versions' common ancestor.
     func merge(base: Value, ours: Value, theirs: Value) throws(MergeConflict) -> Value

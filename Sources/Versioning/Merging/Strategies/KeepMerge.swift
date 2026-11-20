@@ -5,7 +5,7 @@
 /// let strategy: KeepMerge<String> = .ours
 /// try strategy.merge(base: "a", ours: "b", theirs: "c")   // "b"
 /// ```
-public enum KeepMerge<Value: Sendable>: MergeStrategy {
+public enum KeepMerge<Value>: MergeStrategy {
     case ours
     case theirs
 
