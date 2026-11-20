@@ -50,21 +50,26 @@ private extension IdentifiedElementMerge {
         let (leader, follower) = theirsLead ? (theirs, ours) : (ours, theirs)
         let (leaderByID, followerByID) = theirsLead ? (other, mine) : (mine, other)
         let (leaderSide, followerSide): (KeepMerge<Element>, KeepMerge<Element>) = theirsLead ? (.theirs, .ours) : (.ours, .theirs)
+        // Each conflict is at the element's position in the side that has it.
+        var conflicts: [MergeConflict.Path] = []
         var merged: [Element] = []
-        for element in leader {
+        for (offset, element) in leader.enumerated() {
             if let counterpart = followerByID[element.id] {
                 let (ourElement, theirElement) = theirsLead ? (counterpart, element) : (element, counterpart)
-                merged.append(try Element.mergedElement(ourElement, theirElement, base: original?[element.id], favoring: favoring?.retyped()))
-            } else if try keeps(element, changedBy: leaderSide, base: original) {
+                merged.append(MergeConflict.collect(into: &conflicts, at: [.index(offset)]) { () throws(MergeConflict) in
+                    try Element.mergedElement(ourElement, theirElement, base: original?[element.id], favoring: favoring?.retyped())
+                } ?? element)
+            } else if MergeConflict.collect(into: &conflicts, at: [.index(offset)], { () throws(MergeConflict) in try keeps(element, changedBy: leaderSide, base: original) }) ?? true {
                 merged.append(element)
             }
         }
         for (offset, element) in follower.enumerated() where leaderByID[element.id] == nil {
-            guard try keeps(element, changedBy: followerSide, base: original) else { continue }
+            guard MergeConflict.collect(into: &conflicts, at: [.index(offset)], { () throws(MergeConflict) in try keeps(element, changedBy: followerSide, base: original) }) ?? false else { continue }
             let predecessor = follower[..<offset].last { earlier in merged.contains { $0.id == earlier.id } }
             let index = predecessor.flatMap { earlier in merged.firstIndex { $0.id == earlier.id } }.map { $0 + 1 } ?? 0
             merged.insert(element, at: index)
         }
+        guard conflicts.isEmpty else { throw MergeConflict(at: conflicts) }
         return merged
     }
 
@@ -113,6 +118,9 @@ extension Encodable where Self: Decodable {
             let strategy = DefaultMergeStrategy<Self>(favoring: side)
             guard let base else { return try strategy.merge(ours: ours, theirs: theirs) }
             return try strategy.merge(base: base, ours: ours, theirs: theirs)
+        } catch let conflict as MergeConflict {
+            guard let side else { throw conflict }
+            return try side.merge(ours: ours, theirs: theirs)
         } catch {
             guard let side else { throw MergeConflict() }
             return try side.merge(ours: ours, theirs: theirs)

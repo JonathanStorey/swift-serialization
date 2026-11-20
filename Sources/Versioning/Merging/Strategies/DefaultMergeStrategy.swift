@@ -45,6 +45,8 @@ extension DefaultMergeStrategy: MergeStrategy where Value: Codable {
     private static func decoded(_ context: () throws -> MergeContext) throws(MergeConflict) -> Value {
         do {
             return try context().decode(Value.self)
+        } catch let conflict as MergeConflict {
+            throw conflict
         } catch {
             throw MergeConflict()
         }

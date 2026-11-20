@@ -28,6 +28,9 @@ extension Optional {
     where Wrapped == KeepMerge<V> {
         do {
             return try merge()
+        } catch let conflict as MergeConflict {
+            guard let side = self else { throw conflict }
+            return try side.merge(ours: ours, theirs: theirs)
         } catch {
             guard let side = self else { throw MergeConflict() }
             return try side.merge(ours: ours, theirs: theirs)

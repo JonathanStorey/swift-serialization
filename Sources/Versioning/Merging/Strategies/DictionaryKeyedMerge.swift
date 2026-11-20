@@ -33,19 +33,29 @@ public struct DictionaryKeyedMerge<Key: Hashable & Codable, Element: Codable>: M
 
 private extension DictionaryKeyedMerge {
     func merged(_ ours: [Key: Element], _ theirs: [Key: Element], base: [Key: Element]?) throws(MergeConflict) -> [Key: Element] {
+        var conflicts: [MergeConflict.Path] = []
         var merged: [Key: Element] = [:]
         for key in Set(ours.keys).union(theirs.keys) {
+            let path: MergeConflict.Path = [.key(String(describing: key))]
             switch (ours[key], theirs[key]) {
             case let (mine?, other?):
-                merged[key] = try Element.mergedElement(mine, other, base: base?[key], favoring: favoring?.retyped())
+                merged[key] = MergeConflict.collect(into: &conflicts, at: path) { () throws(MergeConflict) in
+                    try Element.mergedElement(mine, other, base: base?[key], favoring: favoring?.retyped())
+                }
             case let (mine?, nil):
-                if try keeps(mine, changedBy: KeepMerge<Element>.ours, base: base.map { $0[key] }) { merged[key] = mine }
+                if MergeConflict.collect(into: &conflicts, at: path, { () throws(MergeConflict) in try keeps(mine, changedBy: KeepMerge<Element>.ours, base: base.map { $0[key] }) }) == true {
+                    merged[key] = mine
+                }
             case let (nil, other?):
-                if try keeps(other, changedBy: KeepMerge<Element>.theirs, base: base.map { $0[key] }) { merged[key] = other }
+                if MergeConflict.collect(into: &conflicts, at: path, { () throws(MergeConflict) in try keeps(other, changedBy: KeepMerge<Element>.theirs, base: base.map { $0[key] }) }) == true {
+                    merged[key] = other
+                }
             case (nil, nil):
                 break
             }
         }
+        // A dictionary has no order, so neither do its conflicts.
+        guard conflicts.isEmpty else { throw MergeConflict(at: conflicts.sorted { $0.description < $1.description }) }
         return merged
     }
 

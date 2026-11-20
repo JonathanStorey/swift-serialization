@@ -52,7 +52,7 @@ private let a = Item(id: 1, title: "a"), b = Item(id: 2, title: "b")
         #expect(try IdentifiedElementMerge<Item>().merge(base: [a, b], ours: [a, b], theirs: [a]) == [a])
         var changed = b
         changed.done = true
-        #expect(throws: MergeConflict()) { try IdentifiedElementMerge<Item>().merge(base: [a, b], ours: [a, changed], theirs: [a]) }
+        #expect(throws: MergeConflict.self) { try IdentifiedElementMerge<Item>().merge(base: [a, b], ours: [a, changed], theirs: [a]) }
         #expect(try IdentifiedElementMerge<Item>(favoring: .ours).merge(base: [a, b], ours: [a, changed], theirs: [a]) == [a, changed])
         #expect(try IdentifiedElementMerge<Item>(favoring: .theirs).merge(base: [a, b], ours: [a, changed], theirs: [a]) == [a])
     }
@@ -61,7 +61,7 @@ private let a = Item(id: 1, title: "a"), b = Item(id: 2, title: "b")
         var mine = a, yours = a
         mine.title = "Mine"
         yours.title = "Yours"
-        #expect(throws: MergeConflict()) { try merged([a], [mine], [yours], using: .byID()) }
+        #expect(throws: MergeConflict.self) { try merged([a], [mine], [yours], using: .byID()) }
         #expect(try merged([a], [mine], [yours], using: .byID(favoring: .theirs)) == [yours])
     }
 
@@ -82,7 +82,7 @@ private let a = Item(id: 1, title: "a"), b = Item(id: 2, title: "b")
 
     @Test func withoutABaseAnElementOnlyOneSideHasConflicts() throws {
         #expect(try IdentifiedElementMerge<Item>().merge(ours: [a, b], theirs: [b, a]) == [a, b])
-        #expect(throws: MergeConflict()) { try IdentifiedElementMerge<Item>().merge(ours: [a, b], theirs: [a]) }
+        #expect(throws: MergeConflict.self) { try IdentifiedElementMerge<Item>().merge(ours: [a, b], theirs: [a]) }
     }
 }
 
@@ -121,7 +121,7 @@ private let a = Item(id: 1, title: "a"), b = Item(id: 2, title: "b")
         var ours = base, theirs = base
         ours.byCode[Code(value: 1)] = nil
         theirs.byCode[Code(value: 1)]?.count = 9
-        #expect(throws: MergeConflict()) { try ours.merging(with: theirs, from: base) }
+        #expect(throws: MergeConflict.self) { try ours.merging(with: theirs, from: base) }
         #expect(try DefaultMergeStrategy<Board>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs).byCode == theirs.byCode)
     }
 

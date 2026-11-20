@@ -219,6 +219,21 @@ struct LongerMerge: MergeStrategy {
 Without a base, only equal values merge, unless the strategy implements
 `merge(ours:theirs:)`.
 
+A `MergeConflict` carries `paths`, where the versions conflict, relative to
+the merged value. A strategy for one value conflicts at `[]`, the whole value.
+One that merges parts reports every part that conflicts, so an app can ask the
+user about only those:
+
+```swift
+do {
+    note = try ours.merging(with: theirs, from: base)
+} catch {
+    for path in error.paths {
+        print(path, try JSONRepresentation(ours)[path], try JSONRepresentation(theirs)[path])
+    }   // $.title "Ours" "Theirs"
+}
+```
+
 A strategy decides only when both sides changed a value. Where only one side
 changed it, keep that side.
 
