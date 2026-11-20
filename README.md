@@ -219,6 +219,25 @@ struct LongerMerge: MergeStrategy {
 Without a base, only equal values merge, unless the strategy implements
 `merge(ours:theirs:)`.
 
+A strategy decides only when both sides changed a value. Where only one side
+changed it, keep that side.
+
+| Strategy | Works with | Merges | Needs a base |
+| --- | --- | --- | --- |
+| `KeepMerge(.ours)`, `KeepMerge(.theirs)` | anything | the named side | no |
+| `ComparableMaximumMerge` | any `Comparable` | the larger | no |
+| `NumericSumMerge` | any `Numeric` | both changes added, as a counter | yes |
+| `BoolTrueWinsMerge` | `Bool` | `true` if either is | no |
+| `SetAlgebraMembershipMerge` | `Set`, any `OptionSet` | additions and removals from both | yes |
+| `SetAlgebraUnionMerge` | `Set`, any `OptionSet` | as membership, or every element without a base | no |
+| `DictionaryKeyedMerge` | any `Dictionary` | key by key | yes |
+| `RangeReplaceableCollectionElementMerge` | arrays, `String` | element by element, like lines | yes |
+| `StringWordMerge` | `String` | word by word | yes |
+| `MergeableMerge` | any `Mergeable` | by its own `merging`, or the favored side | as the type |
+
+A type that merges with another version of itself conforms to `Mergeable`
+and implements `merging(with:from:)`.
+
 ## CloudKit records
 
 ### References

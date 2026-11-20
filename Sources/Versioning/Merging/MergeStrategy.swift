@@ -1,6 +1,11 @@
 /// How a value merges when both sides changed it. A strategy is a plain
 /// value, so it can hold settings of its own.
 ///
+/// A strategy decides only when both sides changed a value. Where only one
+/// side changed it, the caller keeps that side, as the JSON merge does at
+/// every node. `KeepMerge(.ours)` called on a value only theirs changed
+/// still keeps ours.
+///
 /// Implement the three-way merge, and the two-way merge too if the strategy
 /// needs no common ancestor.
 ///
