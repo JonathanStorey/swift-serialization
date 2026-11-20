@@ -107,7 +107,7 @@ private struct Shirt: Codable {
         .object([(key: "size", value: .string(cases: ["s", "m"])), (key: "rank", value: .optional(.integer(cases: [1])))]),
     ])
     func roundTripsThroughJSON(_ schema: JSONSchema) {
-        #expect(JSONSchema(json: schema.json) == schema)
+        #expect(JSONSchema(json: schema.body) == schema)
     }
 
     @Test(arguments: [

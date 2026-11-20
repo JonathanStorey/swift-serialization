@@ -22,7 +22,7 @@ public indirect enum JSONSchema: Sendable {
     case array(JSONSchema)
     /// An array whose elements are all different, as `Set` writes.
     case set(JSONSchema)
-    /// An object. Property names must be unique, and writing ``json(_:)`` checks
+    /// An object. Property names must be unique, and writing ``json`` checks
     /// this in debug builds.
     case object(Properties)
     /// An object with any keys and values of one schema, as a `Dictionary`

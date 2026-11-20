@@ -11,14 +11,14 @@ extension JSONSchema: Codable {
         self = schema
     }
 
-    /// Writes the ``JSONSchema/Style/standard`` document, which declares
-    /// the dialect with `"$schema"`.
+    /// Writes the ``json`` document, which declares the dialect with
+    /// `"$schema"`.
     public func encode(to encoder: any Encoder) throws {
-        try json(.standard).encode(to: encoder)
+        try json.encode(to: encoder)
     }
 }
 
 /// The schema as compact JSON Schema text.
 extension JSONSchema: CustomStringConvertible {
-    public var description: String { json.description }
+    public var description: String { body.description }
 }

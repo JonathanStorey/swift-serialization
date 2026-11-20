@@ -85,9 +85,7 @@ are marked optional, and `String` and `Int` raw-value enums list their cases.
 ```swift
 let schema = try JSONSchema(for: Settings.self)
 print(schema)                    // JSON Schema text
-schema.json(.standard)           // a 2020-12 document with "$schema"
-schema.json(.strict)             // every property required, nullable optionals,
-                                 // and "additionalProperties": false
+schema.json                      // a 2020-12 document with "$schema"
 ```
 
 Schemas are written in [JSON Schema draft 2020-12](https://json-schema.org/draft/2020-12),

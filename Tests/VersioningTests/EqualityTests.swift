@@ -115,14 +115,14 @@ import Testing
         let single: JSONSchema = .optional(.string())
         #expect(nested == single)
         #expect(nested.hashValue == single.hashValue)
-        #expect(nested.json == single.json)
+        #expect(nested.body == single.body)
         #expect(nested.id == single.id)
-        #expect(JSONSchema(json: nested.json) == single)
+        #expect(JSONSchema(json: nested.body) == single)
 
         let nestedProperty: JSONSchema = .object([(key: "a", value: .optional(.optional(.integer())))])
         let singleProperty: JSONSchema = .object([(key: "a", value: .optional(.integer()))])
         #expect(nestedProperty == singleProperty)
-        #expect(nestedProperty.json == singleProperty.json)
+        #expect(nestedProperty.body == singleProperty.body)
         #expect(JSONSchema.array(.optional(.optional(.number))) == .array(.optional(.number)))
     }
 
@@ -130,7 +130,7 @@ import Testing
         let first: JSONSchema = .object([(key: "a", value: .string()), (key: "b", value: .string())])
         let second: JSONSchema = .object([(key: "b", value: .string()), (key: "a", value: .string())])
         #expect(first == second)
-        #expect(first.json == second.json)
+        #expect(first.body == second.body)
         #expect(first.description != second.description)
     }
 }

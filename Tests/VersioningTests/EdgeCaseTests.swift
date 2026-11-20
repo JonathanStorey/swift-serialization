@@ -242,6 +242,6 @@ private func json(_ value: some Encodable) -> JSONRepresentation {
                 ? .array(.optional(schema))
                 : .object([(key: "child", value: schema), (key: "note", value: .optional(.string()))])
         }
-        #expect(JSONSchema(json: schema.json) == schema)
+        #expect(JSONSchema(json: schema.body) == schema)
     }
 }
