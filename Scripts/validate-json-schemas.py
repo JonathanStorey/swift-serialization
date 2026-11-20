@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Checks the schemas the Swift tests wrote against JSON Schema draft 2020-12.
 
-Each fixture holds a schema in the standard and strict styles, values that
-must validate and values that must not. Both styles must be valid 2020-12
-schemas, and the standard style must reach the same verdicts as
+Each fixture holds a schema, values that must validate and values that must
+not. The schema must be a valid 2020-12 schema, and it must reach the same
+verdicts as
 JSONSchema.contains(_:), including the "uuid" format. Run it after
 `swift test` with JSON_SCHEMA_FIXTURES set to the same folder.
 """
@@ -28,12 +28,11 @@ def main(folder: str) -> int:
         fixture = json.loads(path.read_text())
         name, schema = fixture["name"], fixture["schema"]
         if schema.get("$schema") != DIALECT:
-            failures.append(f"{name}: the standard style does not declare {DIALECT}")
-        for style in ("schema", "strict"):
-            try:
-                Draft202012Validator.check_schema(fixture[style])
-            except Exception as error:  # SchemaError, with the reason
-                failures.append(f"{name} ({style}): not a valid 2020-12 schema: {error}")
+            failures.append(f"{name}: does not declare {DIALECT}")
+        try:
+            Draft202012Validator.check_schema(schema)
+        except Exception as error:  # SchemaError, with the reason
+            failures.append(f"{name}: not a valid 2020-12 schema: {error}")
         validator = Draft202012Validator(schema, format_checker=Draft202012Validator.FORMAT_CHECKER)
         for value in fixture["valid"]:
             if not validator.is_valid(value):

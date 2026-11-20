@@ -3,8 +3,8 @@
 /// Every keyword written is one the 2020-12 dialect defines: `type`,
 /// `enum`, `minimum`, `maximum`, `format`, `contentEncoding`, `items`,
 /// `uniqueItems`, `properties`, `required`, `additionalProperties` and
-/// `anyOf`. A document in the ``Style/standard`` style also declares the
-/// dialect with `"$schema"`.
+/// `anyOf`. A whole document, ``json``, also declares the dialect with
+/// `"$schema"`.
 ///
 /// An optional property is left out of `required`, matching `JSONEncoder`,
 /// which omits `nil` properties. `required` is written sorted, so equal
@@ -13,8 +13,8 @@
 ///
 /// Schemas come from types through `JSONSchema(for:)`. A stored schema is
 /// read back with `Codable`, which uses the internal `init?(json:)`. That
-/// initializer reads exactly the subset of JSON Schema that `json(_:)`
-/// writes in either ``Style``, so it restores schemas this library wrote
+/// initializer reads exactly the subset of JSON Schema that ``json``
+/// writes, so it restores schemas this library wrote
 /// rather than importing arbitrary ones. Anything it cannot represent fails
 /// instead of being dropped: an unknown keyword, a duplicate key, or a
 /// `required` name with no matching property.
@@ -42,7 +42,7 @@ extension JSONSchema {
         let allowedKeys: Set<String>
 
         if case .array(let options)? = json["anyOf"] {
-            guard options.count == 2, options[1] == Self.null.json, let wrapped = JSONSchema(json: options[0]) else { return nil }
+            guard options.count == 2, options[1] == Self.null.body, let wrapped = JSONSchema(json: options[0]) else { return nil }
             schema = .optional(wrapped)
             allowedKeys = ["anyOf"]
         } else {
@@ -67,7 +67,7 @@ extension JSONSchema {
                 schema = isUnique ? .set(items) : .array(items)
             case "object":
                 switch json["additionalProperties"] {
-                case nil, .bool(false)?:
+                case nil:
                     guard let properties = Self.properties(from: json) else { return nil }
                     schema = .object(properties)
                 case .object?:
@@ -93,37 +93,20 @@ extension JSONSchema {
         guard allowedKeys.isSuperset(of: keys) else { return nil }
         self = schema
     }
-
-    /// The schema in the ``Style/standard`` style, without `"$schema"`.
-    /// It is what ``description`` and ``id`` are made from.
-    var json: JSONRepresentation {
-        body(.standard)
-    }
 }
 
 extension JSONSchema {
-    /// How optional properties and undeclared keys are written.
-    public enum Style: Sendable {
-        /// Matches `JSONEncoder` output. An optional property is left out of
-        /// `required`, because `JSONEncoder` omits `nil` properties.
-        case standard
-        /// The form structured-output APIs require in strict mode. Every
-        /// property is listed in `required`, an optional property is written
-        /// as nullable, and every object sets `"additionalProperties": false`.
-        case strict
-    }
-
-    /// The schema as a JSON Schema 2020-12 document in the given style.
-    /// The ``Style/standard`` style declares the dialect with `"$schema"`,
-    /// and the ``Style/strict`` style leaves it out, as structured-output
-    /// APIs expect. Both read back to the same schema.
-    public func json(_ style: Style) -> JSONRepresentation {
-        guard style == .standard, case .object(let object) = body(style) else { return body(style) }
+    /// The schema as a JSON Schema 2020-12 document, declaring the dialect
+    /// with `"$schema"`. It describes exactly what `JSONEncoder` writes: an
+    /// optional property is left out of `required`, and undeclared keys are
+    /// allowed, as `JSONDecoder` ignores them.
+    public var json: JSONRepresentation {
+        guard case .object(let object) = body else { return body }
         return .object([(key: "$schema", value: Self.dialect)] + object)
     }
 
     /// The schema without `"$schema"`, as it is written inside another.
-    func body(_ style: Style) -> JSONRepresentation {
+    var body: JSONRepresentation {
         switch flattened {
         case .null: return ["type": "null"]
         case .boolean: return ["type": "boolean"]
@@ -141,33 +124,23 @@ extension JSONSchema {
             case let format?: object.append((key: "format", value: .string(format.rawValue)))
             }
             return .object(object)
-        case .array(let items): return ["type": "array", "items": items.body(style)]
-        case .set(let items): return ["type": "array", "items": items.body(style), "uniqueItems": true]
-        case .dictionary(let values): return ["type": "object", "additionalProperties": values.body(style)]
-        case .optional(let wrapped): return ["anyOf": [wrapped.body(style), Self.null.json]]
+        case .array(let items): return ["type": "array", "items": items.body]
+        case .set(let items): return ["type": "array", "items": items.body, "uniqueItems": true]
+        case .dictionary(let values): return ["type": "object", "additionalProperties": values.body]
+        case .optional(let wrapped): return ["anyOf": [wrapped.body, Self.null.body]]
         case .object(let properties):
             assert(Set(properties.map(\.key)).count == properties.count, "JSONSchema.object has duplicate property names")
             // `required` is a set in JSON Schema. Sorting it means equal
             // schemas, whatever their property order, write equal JSON.
-            switch style {
-            case .standard:
-                var object: JSONRepresentation.Object = [
-                    (key: "type", value: "object"),
-                    (key: "properties", value: .object(properties.map { (key: $0.key, value: $0.value.propertySchema.body(style)) })),
-                ]
-                let required = properties.filter { !$0.value.isOptional }.map(\.key).sorted().map(JSONRepresentation.string)
-                if !required.isEmpty {
-                    object.append((key: "required", value: .array(required)))
-                }
-                return .object(object)
-            case .strict:
-                return .object([
-                    (key: "type", value: "object"),
-                    (key: "properties", value: .object(properties.map { (key: $0.key, value: $0.value.body(style)) })),
-                    (key: "required", value: .array(properties.map(\.key).sorted().map(JSONRepresentation.string))),
-                    (key: "additionalProperties", value: false),
-                ])
+            var object: JSONRepresentation.Object = [
+                (key: "type", value: "object"),
+                (key: "properties", value: .object(properties.map { (key: $0.key, value: $0.value.propertySchema.body) })),
+            ]
+            let required = properties.filter { !$0.value.isOptional }.map(\.key).sorted().map(JSONRepresentation.string)
+            if !required.isEmpty {
+                object.append((key: "required", value: .array(required)))
             }
+            return .object(object)
         }
     }
 }

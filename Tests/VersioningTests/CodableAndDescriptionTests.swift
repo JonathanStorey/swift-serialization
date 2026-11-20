@@ -110,12 +110,6 @@ import Testing
         #expect(decoded == schema)
     }
 
-    @Test func strictSchemaTextDecodes() throws {
-        let schema: JSONSchema = .object([(key: "name", value: .string()), (key: "nickname", value: .optional(.string()))])
-        let text = Data(schema.json(.strict).description.utf8)
-        #expect(try JSONDecoder().decode(JSONSchema.self, from: text) == schema)
-    }
-
     @Test func storedSchemaChecksCompatibility() throws {
         struct Record: Codable { var schema: JSONSchema; var payload: Data }
         struct V1: Codable { var name: String }

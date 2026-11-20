@@ -123,18 +123,19 @@ private let corpus: [JSONSchema] = [
 @Suite struct JSONSchemaStandardTests {
     // MARK: Keywords
 
-    @Test(arguments: [JSONSchema.Style.standard, .strict])
-    func writesOnly2020_12Keywords(style: JSONSchema.Style) throws {
+    @Test func writesOnly2020_12Keywords() throws {
         for schema in try corpus + [JSONSchema(for: Sample.self)] {
-            #expect(schema.json(style).unknownKeywords().isEmpty, "\(schema.json(style))")
+            #expect(schema.json.unknownKeywords().isEmpty, "\(schema.json)")
         }
     }
 
     @Test func standardDocumentsDeclareTheDialect() throws {
         let schema = try JSONSchema(for: Sample.self)
-        #expect(schema.json(.standard)["$schema"] == "https://json-schema.org/draft/2020-12/schema")
-        #expect(schema.json(.strict)["$schema"] == nil)
-        #expect(schema.description.contains("$schema") == false, "The description and id leave the declaration out.")
+        #expect(schema.json["$schema"] == "https://json-schema.org/draft/2020-12/schema")
+        guard case .object(let pairs) = schema.json else { Issue.record("Not an object"); return }
+        #expect(pairs.first?.key == "$schema")
+        #expect(JSONRepresentation.object(Array(pairs.dropFirst())) == schema.body, "The declaration is the only addition.")
+        #expect(schema.description == schema.body.description, "The description and id leave the declaration out.")
 
         let encoded = String(decoding: try JSONEncoder().encode(schema), as: UTF8.self)
         #expect(encoded.contains("draft\\/2020-12") || encoded.contains("draft/2020-12"))
@@ -153,10 +154,11 @@ private let corpus: [JSONSchema] = [
     }
 
     @Test(arguments: corpus)
-    func roundTripsInBothStyles(schema: JSONSchema) throws {
+    func roundTrips(schema: JSONSchema) throws {
         let data = try JSONEncoder().encode(schema)
         #expect(try JSONDecoder().decode(JSONSchema.self, from: data) == schema)
-        #expect(JSONSchema(document: schema.json(.strict)) == schema)
+        #expect(JSONSchema(document: schema.json) == schema)
+        #expect(JSONSchema(json: schema.body) == schema)
     }
 
     @Test func refusesKeywordsItCannotRepresent() {
@@ -169,6 +171,8 @@ private let corpus: [JSONSchema] = [
             #"{"type":"array","items":{"type":"string"},"uniqueItems":"yes"}"#,
             #"{"type":"object","additionalProperties":{"type":"string"},"properties":{}}"#,
             #"{"type":"object","additionalProperties":true}"#,
+            #"{"type":"object","properties":{},"additionalProperties":false}"#,
+            #"{"type":"string","additionalProperties":false}"#,
         ] {
             #expect(throws: DecodingError.self, "\(text)") { try JSONDecoder().decode(JSONSchema.self, from: Data(text.utf8)) }
         }
@@ -306,11 +310,11 @@ private let corpus: [JSONSchema] = [
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
 
         var fixtures = try Self.fixtures().map { fixture -> JSONRepresentation in
-            ["name": .string(fixture.name), "schema": fixture.schema.json(.standard), "strict": fixture.schema.json(.strict),
+            ["name": .string(fixture.name), "schema": fixture.schema.json,
              "valid": .array(fixture.valid), "invalid": .array(fixture.invalid)]
         }
         fixtures += corpus.enumerated().map { index, schema in
-            ["name": .string("corpus-\(index)"), "schema": schema.json(.standard), "strict": schema.json(.strict), "valid": [], "invalid": []]
+            ["name": .string("corpus-\(index)"), "schema": schema.json, "valid": [], "invalid": []]
         }
         for fixture in fixtures {
             let name = fixture["name"]?.stringValue ?? "fixture"

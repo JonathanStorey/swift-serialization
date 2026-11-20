@@ -10,11 +10,11 @@ import Testing
     ])
 
     @Test func scalarsWriteTheirType() {
-        #expect(JSONSchema.null.json == ["type": "null"])
-        #expect(JSONSchema.boolean.json == ["type": "boolean"])
-        #expect(JSONSchema.integer().json == ["type": "integer"])
-        #expect(JSONSchema.number.json == ["type": "number"])
-        #expect(JSONSchema.string().json == ["type": "string"])
+        #expect(JSONSchema.null.body == ["type": "null"])
+        #expect(JSONSchema.boolean.body == ["type": "boolean"])
+        #expect(JSONSchema.integer().body == ["type": "integer"])
+        #expect(JSONSchema.number.body == ["type": "number"])
+        #expect(JSONSchema.string().body == ["type": "string"])
     }
 
     @Test func objectDerivesRequiredFromOptional() {
@@ -28,7 +28,7 @@ import Testing
             ],
             "required": ["age", "name", "scores"],
         ]
-        #expect(person.json == expected)
+        #expect(person.body == expected)
     }
 
     @Test func objectWithOnlyOptionalPropertiesOmitsRequired() {
@@ -39,7 +39,7 @@ import Testing
     @Test func optionalOutsideAPropertyIsNullable() {
         let schema: JSONSchema = .array(.optional(.integer()))
         let expected: JSONRepresentation = ["type": "array", "items": ["anyOf": [["type": "integer"], ["type": "null"]]]]
-        #expect(schema.json == expected)
+        #expect(schema.body == expected)
     }
 
     @Test(arguments: [
@@ -54,7 +54,7 @@ import Testing
         ]),
     ])
     func roundTrips(_ schema: JSONSchema) {
-        #expect(JSONSchema(json: schema.json) == schema)
+        #expect(JSONSchema(json: schema.body) == schema)
     }
 
     @Test func rejectsUnknownSchemas() {

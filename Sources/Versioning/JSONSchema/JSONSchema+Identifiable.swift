@@ -10,7 +10,7 @@ extension JSONSchema: Identifiable {
     /// Computed on every access by writing and hashing the whole schema.
     /// Store it when you need it repeatedly, such as in a SwiftUI `ForEach`.
     public var id: UUID {
-        UUID(stableHashOf: json.canonicalized().description)
+        UUID(stableHashOf: body.canonicalized().description)
     }
 }
 
