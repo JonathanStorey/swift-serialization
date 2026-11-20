@@ -2,7 +2,7 @@
 ///
 /// Implement the three-way merge, and the two-way merge too if the type can
 /// merge without a common ancestor. The mutating `merge` functions come with
-/// them. Use `MergeableMerge` to merge a property of the type.
+/// them.
 ///
 /// ```swift
 /// let merged = try ours.merging(with: theirs, from: base)
