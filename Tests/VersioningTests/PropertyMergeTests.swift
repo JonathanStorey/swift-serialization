@@ -149,13 +149,13 @@ private func merge(_ ours: Note, _ theirs: Note, base: Note?) throws -> (merged:
     }
 }
 
-@Suite struct JSONMergeTests {
+@Suite struct PropertyMergeTests {
     @Test func mergesWhatDoesNotConflict() throws {
         let base = Note()
         var ours = base, theirs = base
         ours.title = "Ours"
         theirs.tags.insert("c")
-        let merged = try JSONMerge<Note>().merge(base: base, ours: ours, theirs: theirs)
+        let merged = try PropertyMerge<Note>().merge(base: base, ours: ours, theirs: theirs)
         #expect(merged.title == "Ours")
         #expect(merged.tags == ["a", "b", "c"])
     }
@@ -165,7 +165,7 @@ private func merge(_ ours: Note, _ theirs: Note, base: Note?) throws -> (merged:
         var ours = base, theirs = base
         ours.title = "Ours"
         theirs.title = "Theirs"
-        #expect(throws: MergeConflict()) { try JSONMerge<Note>().merge(base: base, ours: ours, theirs: theirs) }
+        #expect(throws: MergeConflict()) { try PropertyMerge<Note>().merge(base: base, ours: ours, theirs: theirs) }
     }
 
     @Test func keepsTheNamedSideAtEachConflict() throws {
@@ -175,11 +175,11 @@ private func merge(_ ours: Note, _ theirs: Note, base: Note?) throws -> (merged:
         theirs.title = "Theirs"
         ours.body = "Ours"
         theirs.place.floor = 4
-        let favoringTheirs = try JSONMerge<Note>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
+        let favoringTheirs = try PropertyMerge<Note>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
         #expect(favoringTheirs.title == "Theirs")
         #expect(favoringTheirs.body == "Ours")
         #expect(favoringTheirs.place.floor == 4)
-        let favoringOurs = try JSONMerge<Note>(favoring: .ours).merge(base: base, ours: ours, theirs: theirs)
+        let favoringOurs = try PropertyMerge<Note>(favoring: .ours).merge(base: base, ours: ours, theirs: theirs)
         #expect(favoringOurs.title == "Ours")
         #expect(favoringOurs.place.floor == 4)
     }
@@ -189,16 +189,107 @@ private func merge(_ ours: Note, _ theirs: Note, base: Note?) throws -> (merged:
         var ours = base, theirs = base
         ours.scores["x"] = nil
         theirs.scores["x"] = 9
-        let merged = try JSONMerge<Note>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
+        let merged = try PropertyMerge<Note>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
         #expect(merged.scores == ["x": 9, "y": 2])
     }
 
     @Test func withoutABaseEqualValuesMerge() throws {
         let note = Note()
-        #expect(try JSONMerge<Note>().merge(ours: note, theirs: note) == note)
+        #expect(try PropertyMerge<Note>().merge(ours: note, theirs: note) == note)
         var theirs = note
         theirs.title = "Theirs"
-        #expect(throws: MergeConflict()) { try JSONMerge<Note>().merge(ours: note, theirs: theirs) }
-        #expect(try JSONMerge<Note>(favoring: .theirs).merge(ours: note, theirs: theirs) == theirs)
+        #expect(throws: MergeConflict()) { try PropertyMerge<Note>().merge(ours: note, theirs: theirs) }
+        #expect(try PropertyMerge<Note>(favoring: .theirs).merge(ours: note, theirs: theirs) == theirs)
+    }
+}
+
+private struct Views: RawRepresentable, Codable, Equatable, Mergeable {
+    var rawValue: Int
+
+    func merging(with theirs: Views, from base: Views) throws(MergeConflict) -> Views {
+        try merging(with: theirs, from: base, using: .rawValue(.sum()))
+    }
+}
+
+/// A type whose own merge always conflicts.
+private struct Stamp: Codable, Equatable, Mergeable {
+    var value = 0
+
+    func merging(with theirs: Stamp, from base: Stamp) throws(MergeConflict) -> Stamp {
+        throw MergeConflict()
+    }
+}
+
+private struct Venue: Codable, Equatable {
+    var city = "Oslo"
+    var visits = Views(rawValue: 0)
+}
+
+private struct Post: Codable, Equatable, Mergeable {
+    var title = "Title"
+    var views = Views(rawValue: 3)
+    var venue = Venue()
+    var stamp = Stamp()
+    var counts: [String: Views] = ["a": Views(rawValue: 1)]
+}
+
+@Suite struct PropertyMergeMergeableTests {
+    @Test func aMergeablePropertyMergesByItsOwnType() throws {
+        let base = Post()
+        var ours = base, theirs = base
+        ours.views = Views(rawValue: 5)
+        theirs.views = Views(rawValue: 4)
+        ours.title = "Ours"
+        let merged = try ours.merging(with: theirs, from: base)
+        #expect(merged.views == Views(rawValue: 6))
+        #expect(merged.title == "Ours")
+    }
+
+    @Test func aNestedMergeablePropertyMergesByItsOwnType() throws {
+        let base = Post()
+        var ours = base, theirs = base
+        ours.venue.visits = Views(rawValue: 2)
+        theirs.venue.visits = Views(rawValue: 3)
+        theirs.venue.city = "Bergen"
+        let merged = try PropertyMerge<Post>().merge(base: base, ours: ours, theirs: theirs)
+        #expect(merged.venue == Venue(city: "Bergen", visits: Views(rawValue: 5)))
+    }
+
+    @Test func aDictionaryOfMergeableValuesMergesEachByItsOwnType() throws {
+        let base = Post()
+        var ours = base, theirs = base
+        ours.counts["a"] = Views(rawValue: 2)
+        theirs.counts["a"] = Views(rawValue: 4)
+        #expect(try ours.merging(with: theirs, from: base).counts == ["a": Views(rawValue: 5)])
+    }
+
+    @Test func otherConflictsStillThrowOrTakeTheFavoredSide() throws {
+        let base = Post()
+        var ours = base, theirs = base
+        ours.views = Views(rawValue: 5)
+        theirs.views = Views(rawValue: 4)
+        ours.title = "Ours"
+        theirs.title = "Theirs"
+        #expect(throws: MergeConflict()) { try PropertyMerge<Post>().merge(base: base, ours: ours, theirs: theirs) }
+        let merged = try PropertyMerge<Post>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
+        #expect(merged.title == "Theirs")
+        #expect(merged.views == Views(rawValue: 6))
+    }
+
+    @Test func aMergeablePropertysConflictThrowsOrTakesTheFavoredSide() throws {
+        let base = Post()
+        var ours = base, theirs = base
+        ours.stamp.value = 1
+        theirs.stamp.value = 2
+        #expect(throws: MergeConflict()) { try ours.merging(with: theirs, from: base) }
+        #expect(try PropertyMerge<Post>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs).stamp.value == 2)
+        #expect(try PropertyMerge<Post>(favoring: .ours).merge(base: base, ours: ours, theirs: theirs).stamp.value == 1)
+    }
+
+    @Test func aPropertyOnlyOneSideChangedSkipsItsOwnMerge() throws {
+        let base = Post()
+        var ours = base
+        ours.stamp.value = 1
+        #expect(try ours.merging(with: base, from: base).stamp.value == 1, "Stamp's merge would conflict.")
     }
 }

@@ -1,0 +1,189 @@
+import Foundation
+
+/// One property merge: the three encoded versions, their merge as JSON, and
+/// the paths a `Mergeable` property's own merge settled. Decoding through it
+/// gives each `Mergeable` property its own merge.
+///
+/// It lives for one synchronous decode, so its mutable state is never
+/// shared across threads.
+final class PropertyMergeContext: @unchecked Sendable {
+    private let ours: JSONRepresentation
+    private let theirs: JSONRepresentation
+    private let base: JSONRepresentation?
+    private let merged: JSONRepresentation
+    private let conflicts: [JSONRepresentation.Path]
+    private let favorsASide: Bool
+    private var settled: [JSONRepresentation.Path] = []
+
+    /// Merges the encoded versions as JSON, keeping the `favoring` side at
+    /// each conflict.
+    init<Value: Codable>(_ ours: Value, _ theirs: Value, base: JSONRepresentation?, favoring side: KeepMerge<Value>?) throws {
+        let mine = try JSONRepresentation(ours)
+        let other = try JSONRepresentation(theirs)
+        // A type the schema cannot describe still merges by shape.
+        let schema = try? JSONSchema(for: Value.self)
+        var conflicts: [JSONRepresentation.Path] = []
+        var merged = mine.merging(other, base: base, under: schema, at: [], conflicts: &conflicts)
+        if case .theirs? = side {
+            for path in conflicts { merged[path] = other[path] }
+        }
+        self.ours = mine
+        self.theirs = other
+        self.base = base
+        self.merged = merged
+        self.conflicts = conflicts
+        favorsASide = side != nil
+    }
+
+    /// The merged value. Without a favored side, a conflict that no
+    /// `Mergeable` property settled throws.
+    func decode<Value: Decodable>(_ type: Value.Type) throws -> Value {
+        let value = try merged.decode(Root<Value>.self, userInfo: [.propertyMerge: self]).value
+        let unsettled = conflicts.contains { conflict in !settled.contains { conflict.starts(with: $0) } }
+        if unsettled, !favorsASide { throw MergeConflict() }
+        return value
+    }
+
+    /// `T`'s own merge of the versions at `path`, or `nil` when `T` is not
+    /// `Mergeable`, both sides did not change it, or a side lacks it. A
+    /// conflict throws, unless a side is favored, which leaves the JSON merge.
+    func mergedValue<T: Decodable>(_ type: T.Type, at path: JSONRepresentation.Path) throws(MergeConflict) -> T? {
+        guard let mergeable = T.self as? any Mergeable.Type, bothChanged(at: path),
+              let mine = ours[path].flatMap({ $0.decoded(T.self) }),
+              let other = theirs[path].flatMap({ $0.decoded(T.self) }) else { return nil }
+        var original: T?
+        if let base {
+            guard let value = base[path].flatMap({ $0.decoded(T.self) }) else { return nil }
+            original = value
+        }
+        do {
+            let value = try mergeable.merged(mine, other, base: original) as? T
+            settled.append(path)
+            return value
+        } catch {
+            guard favorsASide else { throw MergeConflict() }
+            return nil
+        }
+    }
+
+    /// Whether both sides changed an object at `path`, so its properties
+    /// merge one by one.
+    func bothChangedObject(at path: JSONRepresentation.Path) -> Bool {
+        guard case .object? = ours[path], case .object? = theirs[path] else { return false }
+        return bothChanged(at: path)
+    }
+
+    private func bothChanged(at path: JSONRepresentation.Path) -> Bool {
+        guard let mine = ours[path], let other = theirs[path], !mine.isEquivalent(to: other) else { return false }
+        guard let base else { return true }
+        guard let original = base[path] else { return true }
+        return !mine.isEquivalent(to: original) && !other.isEquivalent(to: original)
+    }
+}
+
+private extension Mergeable {
+    /// `ours` merged with `theirs` by this type's own merge, or `nil` when
+    /// they are not this type.
+    static func merged(_ ours: Any, _ theirs: Any, base: Any?) throws(MergeConflict) -> Self? {
+        guard let ours = ours as? Self, let theirs = theirs as? Self else { return nil }
+        guard let base else { return try ours.merging(with: theirs) }
+        guard let base = base as? Self else { return nil }
+        return try ours.merging(with: theirs, from: base)
+    }
+}
+
+private extension JSONRepresentation {
+    /// This value decoded as `T`, or `nil`. It is wrapped in an array, since
+    /// a top-level fragment is not decodable everywhere.
+    func decoded<T: Decodable>(_ type: T.Type) -> T? {
+        (try? JSONRepresentation.array([self]).decode([T].self))?.first
+    }
+}
+
+private extension CodingUserInfoKey {
+    static let propertyMerge = CodingUserInfoKey(rawValue: "Versioning.PropertyMergeContext")!
+}
+
+// MARK: - Decoder
+
+/// Hands `JSONDecoder`'s decoder for the merged JSON to `Value`, wrapped so
+/// that each property can merge by its own type.
+private struct Root<Value: Decodable>: Decodable {
+    let value: Value
+
+    init(from decoder: any Decoder) throws {
+        guard let context = decoder.userInfo[.propertyMerge] as? PropertyMergeContext else { throw MergeConflict() }
+        value = try Value(from: MergingDecoder(decoder: decoder, path: [], context: context))
+    }
+}
+
+private struct MergingDecoder: Decoder {
+    let decoder: any Decoder
+    let path: JSONRepresentation.Path
+    let context: PropertyMergeContext
+
+    var codingPath: [any CodingKey] { decoder.codingPath }
+    var userInfo: [CodingUserInfoKey: Any] { decoder.userInfo }
+
+    func container<Key: CodingKey>(keyedBy type: Key.Type) throws -> KeyedDecodingContainer<Key> {
+        KeyedDecodingContainer(MergingContainer(container: try decoder.container(keyedBy: type), path: path, context: context))
+    }
+
+    func unkeyedContainer() throws -> any UnkeyedDecodingContainer {
+        try decoder.unkeyedContainer()
+    }
+
+    func singleValueContainer() throws -> any SingleValueDecodingContainer {
+        try decoder.singleValueContainer()
+    }
+}
+
+/// Reads the merged JSON, except that a property both sides changed merges
+/// by its own type when that type is `Mergeable`, and an object both sides
+/// changed is read the same way, property by property.
+private struct MergingContainer<Key: CodingKey>: KeyedDecodingContainerProtocol {
+    let container: KeyedDecodingContainer<Key>
+    let path: JSONRepresentation.Path
+    let context: PropertyMergeContext
+
+    var codingPath: [any CodingKey] { container.codingPath }
+    var allKeys: [Key] { container.allKeys }
+
+    func decode<T: Decodable>(_ type: T.Type, forKey key: Key) throws -> T {
+        var path = path
+        path.append(.key(key.stringValue))
+        if let value = try context.mergedValue(T.self, at: path) { return value }
+        if context.bothChangedObject(at: path) {
+            return try T(from: MergingDecoder(decoder: try container.superDecoder(forKey: key), path: path, context: context))
+        }
+        return try container.decode(T.self, forKey: key)
+    }
+
+    func contains(_ key: Key) -> Bool { container.contains(key) }
+    func decodeNil(forKey key: Key) throws -> Bool { try container.decodeNil(forKey: key) }
+    func decode(_ type: Bool.Type, forKey key: Key) throws -> Bool { try container.decode(type, forKey: key) }
+    func decode(_ type: String.Type, forKey key: Key) throws -> String { try container.decode(type, forKey: key) }
+    func decode(_ type: Double.Type, forKey key: Key) throws -> Double { try container.decode(type, forKey: key) }
+    func decode(_ type: Float.Type, forKey key: Key) throws -> Float { try container.decode(type, forKey: key) }
+    func decode(_ type: Int.Type, forKey key: Key) throws -> Int { try container.decode(type, forKey: key) }
+    func decode(_ type: Int8.Type, forKey key: Key) throws -> Int8 { try container.decode(type, forKey: key) }
+    func decode(_ type: Int16.Type, forKey key: Key) throws -> Int16 { try container.decode(type, forKey: key) }
+    func decode(_ type: Int32.Type, forKey key: Key) throws -> Int32 { try container.decode(type, forKey: key) }
+    func decode(_ type: Int64.Type, forKey key: Key) throws -> Int64 { try container.decode(type, forKey: key) }
+    func decode(_ type: UInt.Type, forKey key: Key) throws -> UInt { try container.decode(type, forKey: key) }
+    func decode(_ type: UInt8.Type, forKey key: Key) throws -> UInt8 { try container.decode(type, forKey: key) }
+    func decode(_ type: UInt16.Type, forKey key: Key) throws -> UInt16 { try container.decode(type, forKey: key) }
+    func decode(_ type: UInt32.Type, forKey key: Key) throws -> UInt32 { try container.decode(type, forKey: key) }
+    func decode(_ type: UInt64.Type, forKey key: Key) throws -> UInt64 { try container.decode(type, forKey: key) }
+
+    func nestedContainer<NestedKey: CodingKey>(keyedBy type: NestedKey.Type, forKey key: Key) throws -> KeyedDecodingContainer<NestedKey> {
+        try container.nestedContainer(keyedBy: type, forKey: key)
+    }
+
+    func nestedUnkeyedContainer(forKey key: Key) throws -> any UnkeyedDecodingContainer {
+        try container.nestedUnkeyedContainer(forKey: key)
+    }
+
+    func superDecoder() throws -> any Decoder { try container.superDecoder() }
+    func superDecoder(forKey key: Key) throws -> any Decoder { try container.superDecoder(forKey: key) }
+}
