@@ -34,3 +34,22 @@ extension Optional {
         }
     }
 }
+
+extension KeepMerge {
+    /// The same side, for another type.
+    func retyped<Other>() -> KeepMerge<Other> {
+        switch self {
+        case .ours: .ours
+        case .theirs: .theirs
+        }
+    }
+
+    /// Whether a value that `changer` changed and the other side removed
+    /// stays: it does when this side is the one that changed it.
+    func keeps<Other>(changedBy changer: KeepMerge<Other>) -> Bool {
+        switch (self, changer) {
+        case (.ours, .ours), (.theirs, .theirs): true
+        default: false
+        }
+    }
+}

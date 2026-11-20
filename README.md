@@ -233,12 +233,13 @@ changed it, keep that side.
 | `DictionaryKeyedMerge` | `.byKey()` | any `Dictionary` | key by key | yes |
 | `RangeReplaceableCollectionElementMerge` | `.byElement()` | arrays, `String` | element by element, like lines | yes |
 | `StringWordMerge` | `.byWord()` | `String` | word by word | yes |
+| `IdentifiedElementMerge` | `.byID()` | arrays of `Identifiable & Codable` | element by `id`, each by its own merge | no |
 | `PropertyMerge` | `.byProperty()` | any `Codable` | property by property, each `Mergeable` property by its own merge | no |
 | `RawValueMerge` | `.rawValue(_:)` | any `RawRepresentable` | its raw value, by another strategy | as that strategy |
 
 The dot syntax works wherever a strategy is expected. Each strategy that can
-conflict (`.sum()`, `.byMembership()`, `.byKey()`, `.byElement()`, `.byWord()`
-and `.byProperty()`) holds a settable `favoring` side, kept wherever it conflicts:
+conflict (`.sum()`, `.byMembership()`, `.byKey()`, `.byElement()`, `.byWord()`,
+`.byID()` and `.byProperty()`) holds a settable `favoring` side, kept wherever it conflicts:
 
 ```swift
 try ours.merging(with: theirs, from: base, using: .byWord(favoring: .ours))
@@ -253,7 +254,10 @@ other change from both sides.
 A type that merges with another version of itself conforms to `Mergeable`. A
 `Codable` type has nothing to write: it merges field by field, as `.byProperty()`
 does. Wherever both sides changed a property whose type is `Mergeable`, at any
-depth, that type's own merge decides, so a `Views` property in a `Note` sums. Any type can name a strategy instead, and a caller can choose one for a
+depth, that type's own merge decides, so a `Views` property in a `Note` sums.
+An array or set of `Identifiable` elements merges by `id`, as `.byID()` does, and
+an array of `Mergeable` elements merges each element both sides replaced in
+place by its own merge. Any type can name a strategy instead, and a caller can choose one for a
 single merge:
 
 ```swift

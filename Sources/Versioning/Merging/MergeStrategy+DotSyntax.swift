@@ -57,6 +57,12 @@ extension MergeStrategy {
         Self(favoring: side)
     }
 
+    /// ``IdentifiedElementMerge``: an array of `Identifiable` elements, each
+    /// matched by `id` and merged by its own merge.
+    public static func byID<E: Identifiable & Codable>(favoring side: KeepMerge<[E]>? = nil) -> Self where Self == IdentifiedElementMerge<E> {
+        Self(favoring: side)
+    }
+
     /// ``StringWordMerge``: text word by word.
     public static func byWord<V: StringProtocol & Sendable>(favoring side: KeepMerge<V>? = nil) -> Self where Self == StringWordMerge<V> {
         Self(favoring: side)

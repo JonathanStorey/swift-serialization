@@ -12,7 +12,7 @@ final class PropertyMergeContext: @unchecked Sendable {
     private let base: JSONRepresentation?
     private let merged: JSONRepresentation
     private let conflicts: [JSONRepresentation.Path]
-    private let favorsASide: Bool
+    private let side: KeepMerge<Void>?
     private var settled: [JSONRepresentation.Path] = []
 
     /// Merges the encoded versions as JSON, keeping the `favoring` side at
@@ -32,7 +32,7 @@ final class PropertyMergeContext: @unchecked Sendable {
         self.base = base
         self.merged = merged
         self.conflicts = conflicts
-        favorsASide = side != nil
+        self.side = side?.retyped()
     }
 
     /// The merged value. Without a favored side, a conflict that no
@@ -40,16 +40,31 @@ final class PropertyMergeContext: @unchecked Sendable {
     func decode<Value: Decodable>(_ type: Value.Type) throws -> Value {
         let value = try merged.decode(Root<Value>.self, userInfo: [.propertyMerge: self]).value
         let unsettled = conflicts.contains { conflict in !settled.contains { conflict.starts(with: $0) } }
-        if unsettled, !favorsASide { throw MergeConflict() }
+        if unsettled, side == nil { throw MergeConflict() }
         return value
     }
 
-    /// `T`'s own merge of the versions at `path`, or `nil` when `T` is not
-    /// `Mergeable`, both sides did not change it, or a side lacks it. A
+    /// The versions at `path` merged by `T`'s own rules, or `nil` when `T`
+    /// has none, both sides did not change it, or a side lacks it. `T`'s
+    /// rules are its own merge if it is `Mergeable`, or a merge by element
+    /// for an array or set of `Identifiable` or `Mergeable` elements. A
     /// conflict throws, unless a side is favored, which leaves the JSON merge.
     func mergedValue<T: Decodable>(_ type: T.Type, at path: JSONRepresentation.Path) throws(MergeConflict) -> T? {
-        guard let mergeable = T.self as? any Mergeable.Type, bothChanged(at: path),
-              let mine = ours[path].flatMap({ $0.decoded(T.self) }),
+        guard bothChanged(at: path) else { return nil }
+        let side = side
+        let merge: (Any, Any, Any?) throws(MergeConflict) -> Any?
+        if let mergeable = T.self as? any Mergeable.Type {
+            merge = { ours, theirs, base throws(MergeConflict) in try mergeable.merged(ours, theirs, base: base) }
+        } else if let elements = T.self as? any IdentifiedElements.Type {
+            merge = { ours, theirs, base throws(MergeConflict) in try elements.mergedByID(ours, theirs, base: base, favoring: side) }
+        } else if let elements = T.self as? any IdentifiedMembers.Type {
+            merge = { ours, theirs, base throws(MergeConflict) in try elements.mergedByID(ours, theirs, base: base, favoring: side) }
+        } else if let elements = T.self as? any MergeableElements.Type {
+            merge = { ours, theirs, base throws(MergeConflict) in try elements.mergedByElement(ours, theirs, base: base, favoring: side) }
+        } else {
+            return nil
+        }
+        guard let mine = ours[path].flatMap({ $0.decoded(T.self) }),
               let other = theirs[path].flatMap({ $0.decoded(T.self) }) else { return nil }
         var original: T?
         if let base {
@@ -57,11 +72,11 @@ final class PropertyMergeContext: @unchecked Sendable {
             original = value
         }
         do {
-            let value = try mergeable.merged(mine, other, base: original) as? T
+            guard let value = try merge(mine, other, original) as? T else { return nil }
             settled.append(path)
             return value
         } catch {
-            guard favorsASide else { throw MergeConflict() }
+            guard side != nil else { throw MergeConflict() }
             return nil
         }
     }
@@ -81,7 +96,7 @@ final class PropertyMergeContext: @unchecked Sendable {
     }
 }
 
-private extension Mergeable {
+extension Mergeable {
     /// `ours` merged with `theirs` by this type's own merge, or `nil` when
     /// they are not this type.
     static func merged(_ ours: Any, _ theirs: Any, base: Any?) throws(MergeConflict) -> Self? {
@@ -89,6 +104,56 @@ private extension Mergeable {
         guard let base else { return try ours.merging(with: theirs) }
         guard let base = base as? Self else { return nil }
         return try ours.merging(with: theirs, from: base)
+    }
+}
+
+// MARK: - Elements
+
+/// An array of `Identifiable` elements, merged by id.
+private protocol IdentifiedElements {
+    static func mergedByID(_ ours: Any, _ theirs: Any, base: Any?, favoring side: KeepMerge<Void>?) throws(MergeConflict) -> Self?
+}
+
+extension Array: IdentifiedElements where Element: Identifiable & Codable {
+    fileprivate static func mergedByID(_ ours: Any, _ theirs: Any, base: Any?, favoring side: KeepMerge<Void>?) throws(MergeConflict) -> Self? {
+        guard let ours = ours as? Self, let theirs = theirs as? Self else { return nil }
+        let strategy = IdentifiedElementMerge<Element>(favoring: side?.retyped())
+        guard let base else { return try strategy.merge(ours: ours, theirs: theirs) }
+        guard let base = base as? Self else { return nil }
+        return try strategy.merge(base: base, ours: ours, theirs: theirs)
+    }
+}
+
+/// A set of `Identifiable` elements, merged by id, so an element both sides
+/// edited merges rather than counting as a removal and an addition.
+private protocol IdentifiedMembers {
+    static func mergedByID(_ ours: Any, _ theirs: Any, base: Any?, favoring side: KeepMerge<Void>?) throws(MergeConflict) -> Self?
+}
+
+extension Set: IdentifiedMembers where Element: Identifiable & Codable {
+    fileprivate static func mergedByID(_ ours: Any, _ theirs: Any, base: Any?, favoring side: KeepMerge<Void>?) throws(MergeConflict) -> Self? {
+        guard let ours = ours as? Self, let theirs = theirs as? Self else { return nil }
+        var original: [Element]?
+        if let base {
+            guard let base = base as? Self else { return nil }
+            original = Array(base)
+        }
+        return try [Element].mergedByID(Array(ours), Array(theirs), base: original, favoring: side).map(Set.init)
+    }
+}
+
+/// An array of `Mergeable` elements, merged element by element, where an
+/// element both sides replaced in place merges by its own merge.
+private protocol MergeableElements {
+    static func mergedByElement(_ ours: Any, _ theirs: Any, base: Any?, favoring side: KeepMerge<Void>?) throws(MergeConflict) -> Self?
+}
+
+extension Array: MergeableElements where Element: Mergeable & Codable & Equatable {
+    fileprivate static func mergedByElement(_ ours: Any, _ theirs: Any, base: Any?, favoring side: KeepMerge<Void>?) throws(MergeConflict) -> Self? {
+        guard let ours = ours as? Self, let theirs = theirs as? Self, let base = base as? Self else { return nil }
+        return try ours.mergingElements(with: theirs, from: base) { ours, theirs, base throws(MergeConflict) in
+            try Element.mergedElement(ours, theirs, base: base, favoring: side?.retyped())
+        }
     }
 }
 
