@@ -83,8 +83,8 @@ private func merged<Value>(ours: Value, theirs: Value, using strategy: some Merg
         ours.title = "Ours"
         theirs.title = "Theirs"
         ours.body = "Ours"
-        #expect(try merged(base: base, ours: ours, theirs: theirs, using: .json(favoring: .theirs)) == Card(title: "Theirs", body: "Ours"))
-        #expect(throws: MergeConflict()) { try merged(base: base, ours: ours, theirs: theirs, using: .json()) }
+        #expect(try merged(base: base, ours: ours, theirs: theirs, using: .byProperty(favoring: .theirs)) == Card(title: "Theirs", body: "Ours"))
+        #expect(throws: MergeConflict()) { try merged(base: base, ours: ours, theirs: theirs, using: .byProperty()) }
     }
 }
 
@@ -111,7 +111,7 @@ private func merged<Value>(ours: Value, theirs: Value, using strategy: some Merg
         ours.title = "Ours"
         theirs.title = "Theirs"
         #expect(throws: MergeConflict()) { try ours.merging(with: theirs, from: base) }
-        #expect(try ours.merging(with: theirs, from: base, using: .json(favoring: .theirs)).title == "Theirs")
+        #expect(try ours.merging(with: theirs, from: base, using: .byProperty(favoring: .theirs)).title == "Theirs")
         #expect(try ours.merging(with: theirs, using: .keep(.ours)) == ours)
     }
 }

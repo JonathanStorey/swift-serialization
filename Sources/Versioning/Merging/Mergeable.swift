@@ -1,7 +1,7 @@
 /// A type that merges with another version of itself.
 ///
 /// A `Codable` type conforms with nothing to write: it merges field by
-/// field through its coding keys, as ``JSONMerge`` does. Any type can
+/// field through its coding keys, as ``Merge`` does. Any type can
 /// implement the merge with a strategy instead, or by hand.
 ///
 /// ```swift
@@ -15,7 +15,7 @@
 /// }
 ///
 /// let merged = try ours.merging(with: theirs, from: base)
-/// let favoringTheirs = try ours.merging(with: theirs, from: base, using: .json(favoring: .theirs))
+/// let favoringTheirs = try ours.merging(with: theirs, from: base, using: .byProperty(favoring: .theirs))
 /// ```
 public protocol Mergeable {
     /// This version merged with `theirs`, knowing their common ancestor.
@@ -64,22 +64,22 @@ extension Mergeable where Self: Equatable {
 }
 
 extension Mergeable where Self: Codable {
-    /// Merges field by field through the coding keys, as `.json()` does.
+    /// Merges field by field through the coding keys, as `.byProperty()` does.
     public func merging(with theirs: Self, from base: Self) throws(MergeConflict) -> Self {
-        try merging(with: theirs, from: base, using: .json())
+        try merging(with: theirs, from: base, using: .byProperty())
     }
 
-    /// Without a base, only what both versions share merges, as `.json()`
+    /// Without a base, only what both versions share merges, as `.byProperty()`
     /// does.
     public func merging(with theirs: Self) throws(MergeConflict) -> Self {
-        try merging(with: theirs, using: .json())
+        try merging(with: theirs, using: .byProperty())
     }
 }
 
 extension Mergeable where Self: Codable & Equatable {
-    /// Without a base, only what both versions share merges, as `.json()`
+    /// Without a base, only what both versions share merges, as `.byProperty()`
     /// does.
     public func merging(with theirs: Self) throws(MergeConflict) -> Self {
-        try merging(with: theirs, using: .json())
+        try merging(with: theirs, using: .byProperty())
     }
 }

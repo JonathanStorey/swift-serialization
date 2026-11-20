@@ -233,12 +233,12 @@ changed it, keep that side.
 | `DictionaryKeyedMerge` | `.byKey()` | any `Dictionary` | key by key | yes |
 | `RangeReplaceableCollectionElementMerge` | `.byElement()` | arrays, `String` | element by element, like lines | yes |
 | `StringWordMerge` | `.byWord()` | `String` | word by word | yes |
-| `JSONMerge` | `.json()` | any `Codable` | node by node, guided by its schema | no |
+| `Merge` | `.byProperty()` | any `Codable` | property by property, guided by its schema | no |
 | `RawValueMerge` | `.rawValue(_:)` | any `RawRepresentable` | its raw value, by another strategy | as that strategy |
 
 The dot syntax works wherever a strategy is expected. Each strategy that can
 conflict (`.sum()`, `.byMembership()`, `.byKey()`, `.byElement()`, `.byWord()`
-and `.json()`) holds a settable `favoring` side, kept wherever it conflicts:
+and `.byProperty()`) holds a settable `favoring` side, kept wherever it conflicts:
 
 ```swift
 try ours.merging(with: theirs, from: base, using: .byWord(favoring: .ours))
@@ -247,11 +247,11 @@ var strategy = StringWordMerge<String>()
 strategy.favoring = .theirs
 ```
 
-`.json(favoring:)` keeps the side only at each conflicting value, and every
+`.byProperty(favoring:)` keeps the side only at each conflicting value, and every
 other change from both sides.
 
 A type that merges with another version of itself conforms to `Mergeable`. A
-`Codable` type has nothing to write: it merges field by field, as `.json()`
+`Codable` type has nothing to write: it merges field by field, as `.byProperty()`
 does. Any type can name a strategy instead, and a caller can choose one for a
 single merge:
 
@@ -269,7 +269,7 @@ struct Views: RawRepresentable, Codable, Mergeable {
 }
 
 let merged = try ours.merging(with: theirs, from: base)
-let favoringTheirs = try ours.merging(with: theirs, from: base, using: .json(favoring: .theirs))
+let favoringTheirs = try ours.merging(with: theirs, from: base, using: .byProperty(favoring: .theirs))
 ```
 
 ### Merging JSON
@@ -287,12 +287,12 @@ for path in conflicts {
 }
 ```
 
-`JSONMerge` does the same for a `Codable` value. It throws on a
+`Merge` does the same for a `Codable` value. It throws on a
 conflict, or keeps the named side at each one:
 
 ```swift
-try JSONMerge<Note>().merge(base: base, ours: ours, theirs: theirs)
-try JSONMerge<Note>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
+try Merge<Note>().merge(base: base, ours: ours, theirs: theirs)
+try Merge<Note>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
 ```
 
 ## CloudKit records

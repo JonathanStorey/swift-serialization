@@ -1,4 +1,5 @@
-/// Merges a `Codable` value node by node, guided by its ``JSONSchema``: a
+/// Merges a value property by property. A `Codable` value merges through
+/// its coding keys, node by node, guided by its ``JSONSchema``: a
 /// property only one side changed keeps that side, and where both changed
 /// it, objects merge key by key, a `Set` by membership, a `Dictionary` by
 /// key and an array element by element. The result must decode.
@@ -10,21 +11,23 @@
 /// side is kept.
 ///
 /// ```swift
-/// try JSONMerge<Note>().merge(base: base, ours: mine, theirs: yours)
-/// try JSONMerge<Note>(favoring: .theirs).merge(base: base, ours: mine, theirs: yours)
+/// try Merge<Note>().merge(base: base, ours: mine, theirs: yours)
+/// try Merge<Note>(favoring: .theirs).merge(base: base, ours: mine, theirs: yours)
 /// ```
 ///
 /// It encodes and decodes on every merge, which suits syncing better than
 /// tight loops. To see which paths conflict, call
 /// ``JSONRepresentation/merging(_:base:under:)`` directly.
-public struct JSONMerge<Value: Codable>: MergeStrategy {
+public struct Merge<Value>: Sendable {
     /// The side kept at each conflicting value, or `nil` to throw.
     public var favoring: KeepMerge<Value>?
 
     public init(favoring: KeepMerge<Value>? = nil) {
         self.favoring = favoring
     }
+}
 
+extension Merge: MergeStrategy where Value: Codable {
     public func merge(base: Value, ours: Value, theirs: Value) throws(MergeConflict) -> Value {
         try merge(ours, theirs, base: base)
     }
@@ -36,7 +39,7 @@ public struct JSONMerge<Value: Codable>: MergeStrategy {
     }
 }
 
-private extension JSONMerge {
+private extension Merge where Value: Codable {
     func merge(_ ours: Value, _ theirs: Value, base: Value?) throws(MergeConflict) -> Value {
         do {
             let mine = try JSONRepresentation(ours)

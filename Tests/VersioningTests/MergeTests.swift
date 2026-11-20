@@ -149,13 +149,13 @@ private func merge(_ ours: Note, _ theirs: Note, base: Note?) throws -> (merged:
     }
 }
 
-@Suite struct JSONMergeTests {
+@Suite struct MergeTests {
     @Test func mergesWhatDoesNotConflict() throws {
         let base = Note()
         var ours = base, theirs = base
         ours.title = "Ours"
         theirs.tags.insert("c")
-        let merged = try JSONMerge<Note>().merge(base: base, ours: ours, theirs: theirs)
+        let merged = try Merge<Note>().merge(base: base, ours: ours, theirs: theirs)
         #expect(merged.title == "Ours")
         #expect(merged.tags == ["a", "b", "c"])
     }
@@ -165,7 +165,7 @@ private func merge(_ ours: Note, _ theirs: Note, base: Note?) throws -> (merged:
         var ours = base, theirs = base
         ours.title = "Ours"
         theirs.title = "Theirs"
-        #expect(throws: MergeConflict()) { try JSONMerge<Note>().merge(base: base, ours: ours, theirs: theirs) }
+        #expect(throws: MergeConflict()) { try Merge<Note>().merge(base: base, ours: ours, theirs: theirs) }
     }
 
     @Test func keepsTheNamedSideAtEachConflict() throws {
@@ -175,11 +175,11 @@ private func merge(_ ours: Note, _ theirs: Note, base: Note?) throws -> (merged:
         theirs.title = "Theirs"
         ours.body = "Ours"
         theirs.place.floor = 4
-        let favoringTheirs = try JSONMerge<Note>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
+        let favoringTheirs = try Merge<Note>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
         #expect(favoringTheirs.title == "Theirs")
         #expect(favoringTheirs.body == "Ours")
         #expect(favoringTheirs.place.floor == 4)
-        let favoringOurs = try JSONMerge<Note>(favoring: .ours).merge(base: base, ours: ours, theirs: theirs)
+        let favoringOurs = try Merge<Note>(favoring: .ours).merge(base: base, ours: ours, theirs: theirs)
         #expect(favoringOurs.title == "Ours")
         #expect(favoringOurs.place.floor == 4)
     }
@@ -189,16 +189,16 @@ private func merge(_ ours: Note, _ theirs: Note, base: Note?) throws -> (merged:
         var ours = base, theirs = base
         ours.scores["x"] = nil
         theirs.scores["x"] = 9
-        let merged = try JSONMerge<Note>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
+        let merged = try Merge<Note>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
         #expect(merged.scores == ["x": 9, "y": 2])
     }
 
     @Test func withoutABaseEqualValuesMerge() throws {
         let note = Note()
-        #expect(try JSONMerge<Note>().merge(ours: note, theirs: note) == note)
+        #expect(try Merge<Note>().merge(ours: note, theirs: note) == note)
         var theirs = note
         theirs.title = "Theirs"
-        #expect(throws: MergeConflict()) { try JSONMerge<Note>().merge(ours: note, theirs: theirs) }
-        #expect(try JSONMerge<Note>(favoring: .theirs).merge(ours: note, theirs: theirs) == theirs)
+        #expect(throws: MergeConflict()) { try Merge<Note>().merge(ours: note, theirs: theirs) }
+        #expect(try Merge<Note>(favoring: .theirs).merge(ours: note, theirs: theirs) == theirs)
     }
 }
