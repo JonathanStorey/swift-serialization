@@ -39,8 +39,8 @@ private func merged<Value>(ours: Value, theirs: Value, using strategy: some Merg
         #expect(try merged(ours: 3, theirs: 7, using: .maximum()) == 7)
         #expect(try merged(base: 3, ours: 5, theirs: 4, using: .sum()) == 6)
         #expect(try merged(base: false, ours: true, theirs: false, using: .trueWins()))
-        #expect(try merged(ours: Set(["a"]), theirs: ["b"], using: .union()) == ["a", "b"])
-        #expect(try merged(base: Set(["a", "b"]), ours: ["a"], theirs: ["a", "b", "c"], using: .byMembership()) == ["a", "c"])
+        #expect(try merged(ours: Set(["a"]), theirs: Set(["b"]), using: .union()) == ["a", "b"])
+        #expect(try merged(base: Set(["a", "b"]), ours: Set(["a"]), theirs: Set(["a", "b", "c"]), using: .byMembership()) == ["a", "c"])
         #expect(try merged(base: ["x": 1], ours: ["x": 2], theirs: ["x": 1, "y": 3], using: .byKey()) == ["x": 2, "y": 3])
         #expect(try merged(base: [1, 2], ours: [0, 1, 2], theirs: [1, 2, 3], using: .byElement()) == [0, 1, 2, 3])
         #expect(try merged(base: "the quick fox", ours: "the slow fox", theirs: "the quick dog", using: .byWord()) == "the slow dog")
@@ -50,7 +50,7 @@ private func merged<Value>(ours: Value, theirs: Value, using strategy: some Merg
         #expect(try merged(base: "the quick fox", ours: "the slow fox", theirs: "the quick dog", using: .byWord().keep(.ours)) == "the slow dog")
         #expect(try merged(base: "the quick fox", ours: "the slow fox", theirs: "the fast fox", using: .byWord().keep(.ours)) == "the slow fox")
         #expect(try merged(ours: "ours", theirs: "theirs", using: .byWord().keep(.theirs)) == "theirs", "Without a base, the word merge conflicts.")
-        #expect(try merged(base: UInt8(100), ours: 200, theirs: 210, using: .sum().keep(.theirs)) == 210, "An overflow keeps theirs.")
+        #expect(try merged(base: UInt8(100), ours: UInt8(200), theirs: UInt8(210), using: .sum().keep(.theirs)) == 210, "An overflow keeps theirs.")
     }
 
     @Test func rawValueMergesTheRawValue() throws {
