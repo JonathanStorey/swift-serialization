@@ -1,13 +1,27 @@
 /// Adds both sides' changes to the base, as a counter does, so two
 /// increments both count. Needs a base. A whole number that would overflow
-/// conflicts.
+/// conflicts, unless `favoring` names a side.
 public struct NumericSumMerge<Value: Numeric & Sendable>: MergeStrategy {
-    public init() {}
+    /// The side kept wherever the merge conflicts, or `nil` to throw.
+    public var favoring: KeepMerge<Value>?
+
+    public init(favoring: KeepMerge<Value>? = nil) {
+        self.favoring = favoring
+    }
 
     public func merge(base: Value, ours: Value, theirs: Value) throws(MergeConflict) -> Value {
-        guard let whole = ours as? any FixedWidthInteger else { return ours + theirs - base }
-        guard let sum = checkedSum(whole, theirs, base) as? Value else { throw MergeConflict() }
-        return sum
+        try favoring.resolving(ours: ours, theirs: theirs) { () throws(MergeConflict) in
+            guard let whole = ours as? any FixedWidthInteger else { return ours + theirs - base }
+            guard let sum = checkedSum(whole, theirs, base) as? Value else { throw MergeConflict() }
+            return sum
+        }
+    }
+
+    public func merge(ours: Value, theirs: Value) throws(MergeConflict) -> Value {
+        try favoring.resolving(ours: ours, theirs: theirs) { () throws(MergeConflict) in
+            guard ours == theirs else { throw MergeConflict() }
+            return ours
+        }
     }
 }
 

@@ -5,7 +5,7 @@
 /// let strategy: KeepMerge<String> = .ours
 /// try strategy.merge(base: "a", ours: "b", theirs: "c")   // "b"
 /// ```
-public enum KeepMerge<Value: Sendable>: MergeStrategy {
+public enum KeepMerge<Value>: MergeStrategy {
     case ours
     case theirs
 
@@ -17,6 +17,20 @@ public enum KeepMerge<Value: Sendable>: MergeStrategy {
         switch self {
         case .ours: ours
         case .theirs: theirs
+        }
+    }
+}
+
+extension Optional {
+    /// The result of `merge`, or, where it conflicts, the favored side.
+    /// Without a side, the conflict stands.
+    func resolving<V>(ours: V, theirs: V, _ merge: () throws(MergeConflict) -> V) throws(MergeConflict) -> V
+    where Wrapped == KeepMerge<V> {
+        do {
+            return try merge()
+        } catch {
+            guard let side = self else { throw MergeConflict() }
+            return try side.merge(ours: ours, theirs: theirs)
         }
     }
 }

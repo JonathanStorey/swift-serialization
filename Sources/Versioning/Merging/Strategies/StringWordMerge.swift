@@ -1,11 +1,29 @@
 /// Merges text word by word, so edits to different words combine and
-/// edits to the same word conflict. Needs a base.
+/// edits to the same word conflict, unless `favoring` names a side.
+///
+/// ```swift
+/// try StringWordMerge(favoring: .ours).merge(base: base, ours: mine, theirs: yours)
+/// ```
 public struct StringWordMerge<Value: StringProtocol & Sendable>: MergeStrategy {
-    public init() {}
+    /// The side kept wherever the merge conflicts, or `nil` to throw.
+    public var favoring: KeepMerge<Value>?
+
+    public init(favoring: KeepMerge<Value>? = nil) {
+        self.favoring = favoring
+    }
 
     public func merge(base: Value, ours: Value, theirs: Value) throws(MergeConflict) -> Value {
-        let merged = try ours.words.mergingElements(with: theirs.words, from: base.words)
-        return Value(decoding: merged.joined().utf8, as: UTF8.self)
+        try favoring.resolving(ours: ours, theirs: theirs) { () throws(MergeConflict) in
+            let merged = try ours.words.mergingElements(with: theirs.words, from: base.words)
+            return Value(decoding: merged.joined().utf8, as: UTF8.self)
+        }
+    }
+
+    public func merge(ours: Value, theirs: Value) throws(MergeConflict) -> Value {
+        try favoring.resolving(ours: ours, theirs: theirs) { () throws(MergeConflict) in
+            guard ours == theirs else { throw MergeConflict() }
+            return ours
+        }
     }
 }
 

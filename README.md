@@ -222,32 +222,55 @@ Without a base, only equal values merge, unless the strategy implements
 A strategy decides only when both sides changed a value. Where only one side
 changed it, keep that side.
 
-| Strategy | Works with | Merges | Needs a base |
-| --- | --- | --- | --- |
-| `KeepMerge` (`.ours`, `.theirs`) | anything | the named side | no |
-| `ComparableMaximumMerge` | any `Comparable` | the larger | no |
-| `NumericSumMerge` | any `Numeric` | both changes added, as a counter | yes |
-| `BoolTrueWinsMerge` | `Bool` | `true` if either is | no |
-| `SetAlgebraMembershipMerge` | `Set`, any `OptionSet` | additions and removals from both | yes |
-| `SetAlgebraUnionMerge` | `Set`, any `OptionSet` | as membership, or every element without a base | no |
-| `DictionaryKeyedMerge` | any `Dictionary` | key by key | yes |
-| `RangeReplaceableCollectionElementMerge` | arrays, `String` | element by element, like lines | yes |
-| `StringWordMerge` | `String` | word by word | yes |
-| `JSONMerge` | any `Codable` | node by node, guided by its schema | no |
+| Strategy | Dot syntax | Works with | Merges | Needs a base |
+| --- | --- | --- | --- | --- |
+| `KeepMerge` | `.keep(.ours)`, `.keep(.theirs)` | anything | the named side | no |
+| `ComparableMaximumMerge` | `.maximum()` | any `Comparable` | the larger | no |
+| `NumericSumMerge` | `.sum()` | any `Numeric` | both changes added, as a counter | yes |
+| `BoolTrueWinsMerge` | `.trueWins()` | `Bool` | `true` if either is | no |
+| `SetAlgebraMembershipMerge` | `.byMembership()` | `Set`, any `OptionSet` | additions and removals from both | yes |
+| `SetAlgebraUnionMerge` | `.union()` | `Set`, any `OptionSet` | as membership, or every element without a base | no |
+| `DictionaryKeyedMerge` | `.byKey()` | any `Dictionary` | key by key | yes |
+| `RangeReplaceableCollectionElementMerge` | `.byElement()` | arrays, `String` | element by element, like lines | yes |
+| `StringWordMerge` | `.byWord()` | `String` | word by word | yes |
+| `JSONMerge` | `.json()` | any `Codable` | node by node, guided by its schema | no |
+| `RawValueMerge` | `.rawValue(_:)` | any `RawRepresentable` | its raw value, by another strategy | as that strategy |
 
-`AnyMergeStrategy` wraps any strategy, so it can be stored without making
-its owner generic, and names the strategies above with dot syntax: `.keep(_:)`,
-`.maximum`, `.sum`, `.trueWins`, `.byMembership`, `.union`, `.byKey()`,
-`.byElement`, `.byWord`, `.json` and `.json(onConflict:)`. End one with
-`keep(_:)` to keep a side wherever it conflicts.
+The dot syntax works wherever a strategy is expected. Each strategy that can
+conflict (`.sum()`, `.byMembership()`, `.byKey()`, `.byElement()`, `.byWord()`
+and `.json()`) holds a settable `favoring` side, kept wherever it conflicts:
 
 ```swift
-let title: AnyMergeStrategy<String> = .byWord.keep(.ours)
-let count: AnyMergeStrategy<Int> = .sum.keep(.theirs)
+try ours.merging(with: theirs, from: base, using: .byWord(favoring: .ours))
+
+var strategy = StringWordMerge<String>()
+strategy.favoring = .theirs
 ```
 
-A type that merges with another version of itself conforms to `Mergeable`
-and implements `merging(with:from:)`.
+`.json(favoring:)` keeps the side only at each conflicting value, and every
+other change from both sides.
+
+A type that merges with another version of itself conforms to `Mergeable`. A
+`Codable` type has nothing to write: it merges field by field, as `.json()`
+does. Any type can name a strategy instead, and a caller can choose one for a
+single merge:
+
+```swift
+struct Note: Codable, Mergeable {
+    var title = ""
+    var tags: Set<String> = []
+}
+
+struct Views: RawRepresentable, Codable, Mergeable {
+    var rawValue: Int
+    func merging(with theirs: Views, from base: Views) throws(MergeConflict) -> Views {
+        try merging(with: theirs, from: base, using: .rawValue(.sum()))
+    }
+}
+
+let merged = try ours.merging(with: theirs, from: base)
+let favoringTheirs = try ours.merging(with: theirs, from: base, using: .json(favoring: .theirs))
+```
 
 ### Merging JSON
 
@@ -269,7 +292,7 @@ conflict, or keeps the named side at each one:
 
 ```swift
 try JSONMerge<Note>().merge(base: base, ours: ours, theirs: theirs)
-try JSONMerge<Note>(onConflict: .theirs).merge(base: base, ours: ours, theirs: theirs)
+try JSONMerge<Note>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
 ```
 
 ## CloudKit records

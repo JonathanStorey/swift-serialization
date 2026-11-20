@@ -1,12 +1,21 @@
 /// A type that merges with another version of itself.
 ///
-/// Implement the three-way merge, and the two-way merge too if the type can
-/// merge without a common ancestor. The mutating `merge` functions come with
-/// them.
+/// A `Codable` type conforms with nothing to write: it merges field by
+/// field through its coding keys, as ``JSONMerge`` does. Any type can
+/// implement the merge with a strategy instead, or by hand.
 ///
 /// ```swift
+/// struct Note: Codable, Mergeable {}
+///
+/// struct Views: RawRepresentable, Codable, Mergeable {
+///     var rawValue: Int
+///     func merging(with theirs: Views, from base: Views) throws(MergeConflict) -> Views {
+///         try merging(with: theirs, from: base, using: .rawValue(.sum()))
+///     }
+/// }
+///
 /// let merged = try ours.merging(with: theirs, from: base)
-/// try ours.merge(with: theirs)
+/// let favoringTheirs = try ours.merging(with: theirs, from: base, using: .json(favoring: .theirs))
 /// ```
 public protocol Mergeable {
     /// This version merged with `theirs`, knowing their common ancestor.
@@ -19,6 +28,18 @@ extension Mergeable {
     /// Without a base, the versions conflict.
     public func merging(with theirs: Self) throws(MergeConflict) -> Self {
         throw MergeConflict()
+    }
+
+    /// This version merged with `theirs` by `strategy`, knowing their common
+    /// ancestor, in place of the type's own merge.
+    public func merging(with theirs: Self, from base: Self, using strategy: some MergeStrategy<Self>) throws(MergeConflict) -> Self {
+        try strategy.merge(base: base, ours: self, theirs: theirs)
+    }
+
+    /// This version merged with `theirs` by `strategy`, without a common
+    /// ancestor, in place of the type's own merge.
+    public func merging(with theirs: Self, using strategy: some MergeStrategy<Self>) throws(MergeConflict) -> Self {
+        try strategy.merge(ours: self, theirs: theirs)
     }
 
     /// Merges `theirs` into this version, knowing their common ancestor. On a
@@ -39,5 +60,26 @@ extension Mergeable where Self: Equatable {
     public func merging(with theirs: Self) throws(MergeConflict) -> Self {
         guard self == theirs else { throw MergeConflict() }
         return self
+    }
+}
+
+extension Mergeable where Self: Codable {
+    /// Merges field by field through the coding keys, as `.json()` does.
+    public func merging(with theirs: Self, from base: Self) throws(MergeConflict) -> Self {
+        try merging(with: theirs, from: base, using: .json())
+    }
+
+    /// Without a base, only what both versions share merges, as `.json()`
+    /// does.
+    public func merging(with theirs: Self) throws(MergeConflict) -> Self {
+        try merging(with: theirs, using: .json())
+    }
+}
+
+extension Mergeable where Self: Codable & Equatable {
+    /// Without a base, only what both versions share merges, as `.json()`
+    /// does.
+    public func merging(with theirs: Self) throws(MergeConflict) -> Self {
+        try merging(with: theirs, using: .json())
     }
 }
