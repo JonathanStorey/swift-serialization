@@ -230,7 +230,7 @@ changed it, keep that side.
 | `BoolTrueWinsMerge` | `.trueWins()` | `Bool` | `true` if either is | no |
 | `SetAlgebraMembershipMerge` | `.byMembership()` | `Set`, any `OptionSet` | additions and removals from both | yes |
 | `SetAlgebraUnionMerge` | `.union()` | `Set`, any `OptionSet` | as membership, or every element without a base | no |
-| `DictionaryKeyedMerge` | `.byKey()` | any `Dictionary` | key by key | yes |
+| `DictionaryKeyedMerge` | `.byKey()` | any `Codable` `Dictionary` | key by key, each value by its own type | no |
 | `RangeReplaceableCollectionElementMerge` | `.byElement()` | arrays, `String` | element by element, like lines | yes |
 | `StringWordMerge` | `.byWord()` | `String` | word by word | yes |
 | `IdentifiedElementMerge` | `.byID()` | arrays of `Identifiable & Codable` | element by `id`, each by its own merge | no |

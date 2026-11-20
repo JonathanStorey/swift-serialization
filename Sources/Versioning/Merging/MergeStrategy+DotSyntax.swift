@@ -44,8 +44,9 @@ extension MergeStrategy {
         Self()
     }
 
-    /// ``DictionaryKeyedMerge``: a dictionary key by key.
-    public static func byKey<Key: Hashable & Sendable, Element: Equatable & Sendable>(favoring side: KeepMerge<[Key: Element]>? = nil) -> Self
+    /// ``DictionaryKeyedMerge``: a dictionary key by key, each value by its
+    /// own type.
+    public static func byKey<Key: Hashable & Codable, Element: Codable>(favoring side: KeepMerge<[Key: Element]>? = nil) -> Self
     where Self == DictionaryKeyedMerge<Key, Element> {
         Self(favoring: side)
     }

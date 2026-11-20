@@ -7,7 +7,7 @@ private struct Level: Comparable, Sendable {
     static func < (lhs: Level, rhs: Level) -> Bool { lhs.number < rhs.number }
 }
 
-private struct Spot: Hashable, Sendable {
+private struct Spot: Hashable, Codable, Sendable {
     var x: Int
     var y: Int
 }

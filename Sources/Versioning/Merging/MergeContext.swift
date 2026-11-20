@@ -154,43 +154,12 @@ private protocol KeyedEntries {
 }
 
 extension Dictionary: KeyedEntries where Key: Codable, Value: Codable {
-    /// A key both sides have merges its values by their own type. A key one
-    /// side added is kept, and one a side removed is removed, unless the
-    /// other side changed its value, which conflicts or takes `side`.
     fileprivate static func mergedByKey(_ ours: Any, _ theirs: Any, base: Any?, favoring side: KeepMerge<Void>?) throws(MergeConflict) -> Self? {
         guard let ours = ours as? Self, let theirs = theirs as? Self else { return nil }
-        var original: Self?
-        if let base {
-            guard let base = base as? Self else { return nil }
-            original = base
-        }
-        var merged: Self = [:]
-        for key in Set(ours.keys).union(theirs.keys) {
-            switch (ours[key], theirs[key]) {
-            case let (mine?, other?):
-                merged[key] = try Value.mergedElement(mine, other, base: original?[key], favoring: side?.retyped())
-            case let (mine?, nil):
-                if try keeps(mine, changedBy: KeepMerge<Void>.ours, base: original.map { $0[key] }, favoring: side) { merged[key] = mine }
-            case let (nil, other?):
-                if try keeps(other, changedBy: KeepMerge<Void>.theirs, base: original.map { $0[key] }, favoring: side) { merged[key] = other }
-            case (nil, nil):
-                break
-            }
-        }
-        return merged
-    }
-
-    /// Whether a value only `changer` has stays: it does if that side added
-    /// it, not if the other side removed it unchanged, and by `side` if the
-    /// other side removed what this side changed. `base` is `nil` without a
-    /// base, and `.some(nil)` where the base lacks the key.
-    private static func keeps(_ value: Value, changedBy changer: KeepMerge<Void>, base: Value??, favoring side: KeepMerge<Void>?) throws(MergeConflict) -> Bool {
-        if let base {
-            guard let was = base else { return true }
-            if value.encodesLike(was) { return false }
-        }
-        guard let side else { throw MergeConflict() }
-        return side.keeps(changedBy: changer)
+        let strategy = DictionaryKeyedMerge<Key, Value>(favoring: side?.retyped())
+        guard let base else { return try strategy.merge(ours: ours, theirs: theirs) }
+        guard let base = base as? Self else { return nil }
+        return try strategy.merge(base: base, ours: ours, theirs: theirs)
     }
 }
 
