@@ -44,8 +44,9 @@ extension MergeStrategy {
         Self()
     }
 
-    /// ``DictionaryKeyedMerge``: a dictionary key by key.
-    public static func byKey<Key: Hashable & Sendable, Element: Equatable & Sendable>(favoring side: KeepMerge<[Key: Element]>? = nil) -> Self
+    /// ``DictionaryKeyedMerge``: a dictionary key by key, each value by its
+    /// own type.
+    public static func byKey<Key: Hashable & Codable, Element: Codable>(favoring side: KeepMerge<[Key: Element]>? = nil) -> Self
     where Self == DictionaryKeyedMerge<Key, Element> {
         Self(favoring: side)
     }
@@ -57,14 +58,26 @@ extension MergeStrategy {
         Self(favoring: side)
     }
 
+    /// ``IdentifiedElementMerge``: an array of `Identifiable` elements, each
+    /// matched by `id` and merged by its own merge.
+    public static func byID<E: Identifiable & Codable>(favoring side: KeepMerge<[E]>? = nil) -> Self where Self == IdentifiedElementMerge<E> {
+        Self(favoring: side)
+    }
+
     /// ``StringWordMerge``: text word by word.
     public static func byWord<V: StringProtocol & Sendable>(favoring side: KeepMerge<V>? = nil) -> Self where Self == StringWordMerge<V> {
         Self(favoring: side)
     }
 
-    /// ``PropertyMerge``: property by property, keeping the `favoring` side only at
-    /// each conflicting value, and every other change from both sides.
+    /// ``PropertyMerge``: property by property through the encoded shape,
+    /// keeping the `favoring` side only at each conflicting value.
     public static func byProperty<V: Codable>(favoring side: KeepMerge<V>? = nil) -> Self where Self == PropertyMerge<V> {
+        Self(favoring: side)
+    }
+
+    /// ``DefaultMergeStrategy``: property by property, each property by its
+    /// type's own rules, keeping `side` at each conflicting value.
+    public static func favoring<V: Codable>(_ side: KeepMerge<V>?) -> Self where Self == DefaultMergeStrategy<V> {
         Self(favoring: side)
     }
 
