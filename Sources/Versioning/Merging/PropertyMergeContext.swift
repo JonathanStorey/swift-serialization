@@ -17,7 +17,7 @@ final class PropertyMergeContext: @unchecked Sendable {
 
     /// Merges the encoded versions as JSON, keeping the `favoring` side at
     /// each conflict.
-    init<Value: Encodable>(_ ours: Value, _ theirs: Value, base: JSONRepresentation?, favoring side: KeepMerge<Value>?) throws {
+    init<Value: Codable>(_ ours: Value, _ theirs: Value, base: JSONRepresentation?, favoring side: KeepMerge<Value>?) throws {
         let mine = try JSONRepresentation(ours)
         let other = try JSONRepresentation(theirs)
         // A type the schema cannot describe still merges by shape.
