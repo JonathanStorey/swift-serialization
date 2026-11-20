@@ -233,9 +233,33 @@ changed it, keep that side.
 | `DictionaryKeyedMerge` | any `Dictionary` | key by key | yes |
 | `RangeReplaceableCollectionElementMerge` | arrays, `String` | element by element, like lines | yes |
 | `StringWordMerge` | `String` | word by word | yes |
+| `CodableNodeMerge` | any `Codable` | node by node, guided by its schema | no |
 
 A type that merges with another version of itself conforms to `Mergeable`
 and implements `merging(with:from:)`.
+
+### Merging JSON
+
+`merging(_:base:under:)` merges two `JSONRepresentation` values, guided by a
+`JSONSchema`. A value only one side changed keeps that side. Where both
+changed it, objects and dictionaries merge key by key, sets by membership and
+arrays element by element. It returns the merged value and the path of every
+conflict, where the merged value holds ours.
+
+```swift
+let (merged, conflicts) = ours.merging(theirs, base: base, under: try JSONSchema(for: Note.self))
+for path in conflicts {
+    print(path, ours[path], theirs[path])   // $.place.city "Bergen" "Tromsø"
+}
+```
+
+`CodableNodeMerge` does the same for a `Codable` value. It throws on a
+conflict, or keeps the named side at each one:
+
+```swift
+try CodableNodeMerge<Note>().merge(base: base, ours: ours, theirs: theirs)
+try CodableNodeMerge<Note>(onConflict: .theirs).merge(base: base, ours: ours, theirs: theirs)
+```
 
 ## CloudKit records
 
