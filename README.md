@@ -235,6 +235,17 @@ changed it, keep that side.
 | `StringWordMerge` | `String` | word by word | yes |
 | `JSONMerge` | any `Codable` | node by node, guided by its schema | no |
 
+`AnyMergeStrategy` wraps any strategy, so it can be stored without making
+its owner generic, and names the strategies above with dot syntax: `.keep(_:)`,
+`.maximum`, `.sum`, `.trueWins`, `.byMembership`, `.union`, `.byKey()`,
+`.byElement`, `.byWord`, `.json` and `.json(onConflict:)`. End one with
+`keep(_:)` to keep a side wherever it conflicts.
+
+```swift
+let title: AnyMergeStrategy<String> = .byWord.keep(.ours)
+let count: AnyMergeStrategy<Int> = .sum.keep(.theirs)
+```
+
 A type that merges with another version of itself conforms to `Mergeable`
 and implements `merging(with:from:)`.
 
