@@ -224,7 +224,7 @@ changed it, keep that side.
 
 | Strategy | Works with | Merges | Needs a base |
 | --- | --- | --- | --- |
-| `KeepMerge(.ours)`, `KeepMerge(.theirs)` | anything | the named side | no |
+| `KeepMerge` (`.ours`, `.theirs`) | anything | the named side | no |
 | `ComparableMaximumMerge` | any `Comparable` | the larger | no |
 | `NumericSumMerge` | any `Numeric` | both changes added, as a counter | yes |
 | `BoolTrueWinsMerge` | `Bool` | `true` if either is | no |
@@ -233,7 +233,6 @@ changed it, keep that side.
 | `DictionaryKeyedMerge` | any `Dictionary` | key by key | yes |
 | `RangeReplaceableCollectionElementMerge` | arrays, `String` | element by element, like lines | yes |
 | `StringWordMerge` | `String` | word by word | yes |
-| `MergeableMerge` | any `Mergeable` | by its own `merging`, or the favored side | as the type |
 
 A type that merges with another version of itself conforms to `Mergeable`
 and implements `merging(with:from:)`.

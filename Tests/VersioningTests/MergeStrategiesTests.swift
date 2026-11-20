@@ -31,8 +31,9 @@ private struct Tally: Mergeable, Equatable, Sendable {
 
 @Suite struct MergeStrategiesTests {
     @Test func keepTakesTheNamedSide() throws {
-        #expect(try KeepMerge<String>(.ours).merge(base: "a", ours: "b", theirs: "c") == "b")
-        #expect(try KeepMerge<String>(.theirs).merge(ours: "b", theirs: "c") == "c")
+        let ours: KeepMerge<String> = .ours
+        #expect(try ours.merge(base: "a", ours: "b", theirs: "c") == "b")
+        #expect(try KeepMerge<String>.theirs.merge(ours: "b", theirs: "c") == "c")
     }
 
     @Test func maximumKeepsTheLargerByTheTypesOwnOrder() throws {
@@ -140,13 +141,5 @@ private struct Tally: Mergeable, Equatable, Sendable {
         #expect(tally == Tally(count: 7))
         #expect(try tally.merging(with: Tally(count: 7)) == tally, "Without a base, equal versions merge.")
         #expect(throws: MergeConflict()) { try tally.merging(with: Tally(count: 2)) }
-    }
-
-    @Test func mergeableMergeThrowsOrKeepsTheFavoredSide() throws {
-        let conflicting = (base: Tally(count: 0), ours: Tally(count: -1), theirs: Tally(count: 2))
-        #expect(throws: MergeConflict()) { try MergeableMerge<Tally>().merge(base: conflicting.base, ours: conflicting.ours, theirs: conflicting.theirs) }
-        #expect(try MergeableMerge<Tally>(favoring: .theirs).merge(base: conflicting.base, ours: conflicting.ours, theirs: conflicting.theirs) == conflicting.theirs)
-        #expect(try MergeableMerge<Tally>(favoring: .ours).merge(ours: Tally(count: 1), theirs: Tally(count: 2)) == Tally(count: 1))
-        #expect(try MergeableMerge<Tally>().merge(base: Tally(count: 1), ours: Tally(count: 3), theirs: Tally(count: 5)) == Tally(count: 7))
     }
 }
