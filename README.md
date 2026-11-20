@@ -233,7 +233,7 @@ changed it, keep that side.
 | `DictionaryKeyedMerge` | any `Dictionary` | key by key | yes |
 | `RangeReplaceableCollectionElementMerge` | arrays, `String` | element by element, like lines | yes |
 | `StringWordMerge` | `String` | word by word | yes |
-| `CodableNodeMerge` | any `Codable` | node by node, guided by its schema | no |
+| `JSONMerge` | any `Codable` | node by node, guided by its schema | no |
 
 A type that merges with another version of itself conforms to `Mergeable`
 and implements `merging(with:from:)`.
@@ -253,12 +253,12 @@ for path in conflicts {
 }
 ```
 
-`CodableNodeMerge` does the same for a `Codable` value. It throws on a
+`JSONMerge` does the same for a `Codable` value. It throws on a
 conflict, or keeps the named side at each one:
 
 ```swift
-try CodableNodeMerge<Note>().merge(base: base, ours: ours, theirs: theirs)
-try CodableNodeMerge<Note>(onConflict: .theirs).merge(base: base, ours: ours, theirs: theirs)
+try JSONMerge<Note>().merge(base: base, ours: ours, theirs: theirs)
+try JSONMerge<Note>(onConflict: .theirs).merge(base: base, ours: ours, theirs: theirs)
 ```
 
 ## CloudKit records

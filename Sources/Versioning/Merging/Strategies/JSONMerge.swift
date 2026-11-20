@@ -10,14 +10,14 @@
 /// side is kept.
 ///
 /// ```swift
-/// try CodableNodeMerge<Note>().merge(base: base, ours: mine, theirs: yours)
-/// try CodableNodeMerge<Note>(onConflict: .theirs).merge(base: base, ours: mine, theirs: yours)
+/// try JSONMerge<Note>().merge(base: base, ours: mine, theirs: yours)
+/// try JSONMerge<Note>(onConflict: .theirs).merge(base: base, ours: mine, theirs: yours)
 /// ```
 ///
 /// It encodes and decodes on every merge, which suits syncing better than
 /// tight loops. To see which paths conflict, call
 /// ``JSONRepresentation/merging(_:base:under:)`` directly.
-public struct CodableNodeMerge<Value: Codable & Sendable>: MergeStrategy {
+public struct JSONMerge<Value: Codable & Sendable>: MergeStrategy {
     let onConflict: KeepMerge<Value>?
 
     /// A merge that throws on any conflict, or keeps the `onConflict` side
@@ -37,7 +37,7 @@ public struct CodableNodeMerge<Value: Codable & Sendable>: MergeStrategy {
     }
 }
 
-private extension CodableNodeMerge {
+private extension JSONMerge {
     func merge(_ ours: Value, _ theirs: Value, base: Value?) throws(MergeConflict) -> Value {
         do {
             let mine = try JSONRepresentation(ours)

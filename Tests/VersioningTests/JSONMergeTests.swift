@@ -25,7 +25,7 @@ private func merge(_ ours: Note, _ theirs: Note, base: Note?) throws -> (merged:
     return (try merged.decode(), conflicts)
 }
 
-@Suite struct JSONMergeTests {
+@Suite struct JSONRepresentationMergingTests {
     @Test func changesFromEachSideBothApply() throws {
         let base = Note()
         var ours = base, theirs = base
@@ -149,13 +149,13 @@ private func merge(_ ours: Note, _ theirs: Note, base: Note?) throws -> (merged:
     }
 }
 
-@Suite struct CodableNodeMergeTests {
+@Suite struct JSONMergeTests {
     @Test func mergesWhatDoesNotConflict() throws {
         let base = Note()
         var ours = base, theirs = base
         ours.title = "Ours"
         theirs.tags.insert("c")
-        let merged = try CodableNodeMerge<Note>().merge(base: base, ours: ours, theirs: theirs)
+        let merged = try JSONMerge<Note>().merge(base: base, ours: ours, theirs: theirs)
         #expect(merged.title == "Ours")
         #expect(merged.tags == ["a", "b", "c"])
     }
@@ -165,7 +165,7 @@ private func merge(_ ours: Note, _ theirs: Note, base: Note?) throws -> (merged:
         var ours = base, theirs = base
         ours.title = "Ours"
         theirs.title = "Theirs"
-        #expect(throws: MergeConflict()) { try CodableNodeMerge<Note>().merge(base: base, ours: ours, theirs: theirs) }
+        #expect(throws: MergeConflict()) { try JSONMerge<Note>().merge(base: base, ours: ours, theirs: theirs) }
     }
 
     @Test func keepsTheNamedSideAtEachConflict() throws {
@@ -175,11 +175,11 @@ private func merge(_ ours: Note, _ theirs: Note, base: Note?) throws -> (merged:
         theirs.title = "Theirs"
         ours.body = "Ours"
         theirs.place.floor = 4
-        let favoringTheirs = try CodableNodeMerge<Note>(onConflict: .theirs).merge(base: base, ours: ours, theirs: theirs)
+        let favoringTheirs = try JSONMerge<Note>(onConflict: .theirs).merge(base: base, ours: ours, theirs: theirs)
         #expect(favoringTheirs.title == "Theirs")
         #expect(favoringTheirs.body == "Ours")
         #expect(favoringTheirs.place.floor == 4)
-        let favoringOurs = try CodableNodeMerge<Note>(onConflict: .ours).merge(base: base, ours: ours, theirs: theirs)
+        let favoringOurs = try JSONMerge<Note>(onConflict: .ours).merge(base: base, ours: ours, theirs: theirs)
         #expect(favoringOurs.title == "Ours")
         #expect(favoringOurs.place.floor == 4)
     }
@@ -189,16 +189,16 @@ private func merge(_ ours: Note, _ theirs: Note, base: Note?) throws -> (merged:
         var ours = base, theirs = base
         ours.scores["x"] = nil
         theirs.scores["x"] = 9
-        let merged = try CodableNodeMerge<Note>(onConflict: .theirs).merge(base: base, ours: ours, theirs: theirs)
+        let merged = try JSONMerge<Note>(onConflict: .theirs).merge(base: base, ours: ours, theirs: theirs)
         #expect(merged.scores == ["x": 9, "y": 2])
     }
 
     @Test func withoutABaseEqualValuesMerge() throws {
         let note = Note()
-        #expect(try CodableNodeMerge<Note>().merge(ours: note, theirs: note) == note)
+        #expect(try JSONMerge<Note>().merge(ours: note, theirs: note) == note)
         var theirs = note
         theirs.title = "Theirs"
-        #expect(throws: MergeConflict()) { try CodableNodeMerge<Note>().merge(ours: note, theirs: theirs) }
-        #expect(try CodableNodeMerge<Note>(onConflict: .theirs).merge(ours: note, theirs: theirs) == theirs)
+        #expect(throws: MergeConflict()) { try JSONMerge<Note>().merge(ours: note, theirs: theirs) }
+        #expect(try JSONMerge<Note>(onConflict: .theirs).merge(ours: note, theirs: theirs) == theirs)
     }
 }
