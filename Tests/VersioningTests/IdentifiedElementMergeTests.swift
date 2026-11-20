@@ -22,7 +22,12 @@ private struct Board: Codable, Equatable, Mergeable {
     var items: [Item] = [Item(id: 1, title: "a"), Item(id: 2, title: "b")]
     var tallies: [Tally] = [Tally(id: 1, count: 3)]
     var tagged: Set<Item> = [Item(id: 1, title: "a")]
-    var counts: [Tally] = []
+    var byCode: [Code: Tally] = [Code(value: 1): Tally(id: 1, count: 3)]
+}
+
+/// A key `JSONEncoder` writes as part of a flat array of keys and values.
+private struct Code: Hashable, Codable {
+    var value: Int
 }
 
 private let a = Item(id: 1, title: "a"), b = Item(id: 2, title: "b")
@@ -65,6 +70,12 @@ private let a = Item(id: 1, title: "a"), b = Item(id: 2, title: "b")
         #expect(try merged(base, [Tally(id: 1, count: 5)], [Tally(id: 1, count: 4)], using: .byID()) == [Tally(id: 1, count: 6)])
     }
 
+    @Test func onlyTheirsReorderingTakesTheirOrder() throws {
+        let c = Item(id: 3, title: "c"), d = Item(id: 4, title: "d")
+        #expect(try IdentifiedElementMerge<Item>().merge(base: [a, b, c], ours: [a, b, c, d], theirs: [c, a, b]) == [c, d, a, b], "Ours's addition follows c.")
+        #expect(try IdentifiedElementMerge<Item>().merge(base: [a, b, c], ours: [b, a, c], theirs: [c, a, b]) == [b, a, c], "Both reordered, so ours leads.")
+    }
+
     @Test func repeatedIDsConflict() {
         #expect(throws: MergeConflict()) { try IdentifiedElementMerge<Item>().merge(base: [a], ours: [a, a], theirs: [a]) }
     }
@@ -93,6 +104,25 @@ private let a = Item(id: 1, title: "a"), b = Item(id: 2, title: "b")
         ours.tallies[0].count = 5
         theirs.tallies[0].count = 4
         #expect(try ours.merging(with: theirs, from: base).tallies == [Tally(id: 1, count: 6)])
+    }
+
+    @Test func aDictionaryWithAnyKeyMergesByKey() throws {
+        let base = Board()
+        var ours = base, theirs = base
+        ours.byCode[Code(value: 1)]?.count = 5
+        theirs.byCode[Code(value: 1)]?.count = 4
+        theirs.byCode[Code(value: 2)] = Tally(id: 2, count: 1)
+        let merged = try ours.merging(with: theirs, from: base)
+        #expect(merged.byCode == [Code(value: 1): Tally(id: 1, count: 6), Code(value: 2): Tally(id: 2, count: 1)])
+    }
+
+    @Test func aDictionaryKeyRemovedWhileChangedConflicts() throws {
+        let base = Board()
+        var ours = base, theirs = base
+        ours.byCode[Code(value: 1)] = nil
+        theirs.byCode[Code(value: 1)]?.count = 9
+        #expect(throws: MergeConflict()) { try ours.merging(with: theirs, from: base) }
+        #expect(try PropertyMerge<Board>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs).byCode == theirs.byCode)
     }
 
     @Test func aSetOfIdentifiableElementsMergesEditsByID() throws {

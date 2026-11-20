@@ -46,8 +46,9 @@ final class PropertyMergeContext: @unchecked Sendable {
 
     /// The versions at `path` merged by `T`'s own rules, or `nil` when `T`
     /// has none, both sides did not change it, or a side lacks it. `T`'s
-    /// rules are its own merge if it is `Mergeable`, or a merge by id for an
-    /// array or set of `Identifiable` elements. A
+    /// rules are its own merge if it is `Mergeable`, a merge by key for a
+    /// dictionary, or a merge by id for an array or set of `Identifiable`
+    /// elements. A
     /// conflict throws, unless a side is favored, which leaves the JSON merge.
     func mergedValue<T: Decodable>(_ type: T.Type, at path: JSONRepresentation.Path) throws(MergeConflict) -> T? {
         guard bothChanged(at: path) else { return nil }
@@ -57,6 +58,8 @@ final class PropertyMergeContext: @unchecked Sendable {
             merge = { ours, theirs, base throws(MergeConflict) in try mergeable.merged(ours, theirs, base: base) }
         } else if let elements = T.self as? any IdentifiedElements.Type {
             merge = { ours, theirs, base throws(MergeConflict) in try elements.mergedByID(ours, theirs, base: base, favoring: side) }
+        } else if let entries = T.self as? any KeyedEntries.Type {
+            merge = { ours, theirs, base throws(MergeConflict) in try entries.mergedByKey(ours, theirs, base: base, favoring: side) }
         } else if let elements = T.self as? any IdentifiedMembers.Type {
             merge = { ours, theirs, base throws(MergeConflict) in try elements.mergedByID(ours, theirs, base: base, favoring: side) }
         } else {
@@ -137,6 +140,54 @@ extension Set: IdentifiedMembers where Element: Identifiable & Codable {
             original = Array(base)
         }
         return try [Element].mergedByID(Array(ours), Array(theirs), base: original, favoring: side).map(Set.init)
+    }
+}
+
+/// A dictionary, merged key by key whatever its key type, since
+/// `JSONEncoder` writes a dictionary keyed by anything but a `String` or an
+/// `Int` as a flat array of keys and values.
+private protocol KeyedEntries {
+    static func mergedByKey(_ ours: Any, _ theirs: Any, base: Any?, favoring side: KeepMerge<Void>?) throws(MergeConflict) -> Self?
+}
+
+extension Dictionary: KeyedEntries where Key: Codable, Value: Codable {
+    /// A key both sides have merges its values by their own type. A key one
+    /// side added is kept, and one a side removed is removed, unless the
+    /// other side changed its value, which conflicts or takes `side`.
+    fileprivate static func mergedByKey(_ ours: Any, _ theirs: Any, base: Any?, favoring side: KeepMerge<Void>?) throws(MergeConflict) -> Self? {
+        guard let ours = ours as? Self, let theirs = theirs as? Self else { return nil }
+        var original: Self?
+        if let base {
+            guard let base = base as? Self else { return nil }
+            original = base
+        }
+        var merged: Self = [:]
+        for key in Set(ours.keys).union(theirs.keys) {
+            switch (ours[key], theirs[key]) {
+            case let (mine?, other?):
+                merged[key] = try Value.mergedElement(mine, other, base: original?[key], favoring: side?.retyped())
+            case let (mine?, nil):
+                if try keeps(mine, changedBy: KeepMerge<Void>.ours, base: original.map { $0[key] }, favoring: side) { merged[key] = mine }
+            case let (nil, other?):
+                if try keeps(other, changedBy: KeepMerge<Void>.theirs, base: original.map { $0[key] }, favoring: side) { merged[key] = other }
+            case (nil, nil):
+                break
+            }
+        }
+        return merged
+    }
+
+    /// Whether a value only `changer` has stays: it does if that side added
+    /// it, not if the other side removed it unchanged, and by `side` if the
+    /// other side removed what this side changed. `base` is `nil` without a
+    /// base, and `.some(nil)` where the base lacks the key.
+    private static func keeps(_ value: Value, changedBy changer: KeepMerge<Void>, base: Value??, favoring side: KeepMerge<Void>?) throws(MergeConflict) -> Bool {
+        if let base {
+            guard let was = base else { return true }
+            if value.encodesLike(was) { return false }
+        }
+        guard let side else { throw MergeConflict() }
+        return side.keeps(changedBy: changer)
     }
 }
 

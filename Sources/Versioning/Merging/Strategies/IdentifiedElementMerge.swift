@@ -10,9 +10,9 @@
 /// - An element one side removed is removed, unless the other side changed
 ///   it, which conflicts.
 ///
-/// The order is ours, with theirs's additions placed among it. Each
-/// version's ids must be unique. Without a base, an element only one side
-/// has conflicts. With `favoring`, each conflicting element takes that side.
+/// The order is ours, with theirs's additions placed among it, unless only
+/// theirs reordered, when it is theirs. Each version's ids must be unique.
+/// Without a base, an element only one side has conflicts. With `favoring`, each conflicting element takes that side.
 ///
 /// ```swift
 /// try IdentifiedElementMerge<Task>(favoring: .theirs).merge(base: base, ours: mine, theirs: yours)
@@ -29,7 +29,7 @@ public struct IdentifiedElementMerge<Element: Identifiable & Codable>: MergeStra
 
     public func merge(base: [Element], ours: [Element], theirs: [Element]) throws(MergeConflict) -> [Element] {
         try favoring.resolving(ours: ours, theirs: theirs) { () throws(MergeConflict) in
-            try merged(ours, theirs, base: Self.byID(base))
+            try merged(ours, theirs, base: base)
         }
     }
 
@@ -41,24 +41,39 @@ public struct IdentifiedElementMerge<Element: Identifiable & Codable>: MergeStra
 }
 
 private extension IdentifiedElementMerge {
-    func merged(_ ours: [Element], _ theirs: [Element], base original: [Element.ID: Element]?) throws(MergeConflict) -> [Element] {
+    func merged(_ ours: [Element], _ theirs: [Element], base: [Element]?) throws(MergeConflict) -> [Element] {
+        var original: [Element.ID: Element]?
+        if let base { original = try Self.byID(base) }
         let mine = try Self.byID(ours)
         let other = try Self.byID(theirs)
+        // The result follows ours's order, unless only theirs reordered.
+        let theirsLead = base.map { !Self.reordered(ours, from: $0) && Self.reordered(theirs, from: $0) } ?? false
+        let (leader, follower) = theirsLead ? (theirs, ours) : (ours, theirs)
+        let (leaderByID, followerByID) = theirsLead ? (other, mine) : (mine, other)
+        let (leaderSide, followerSide): (KeepMerge<Element>, KeepMerge<Element>) = theirsLead ? (.theirs, .ours) : (.ours, .theirs)
         var merged: [Element] = []
-        for element in ours {
-            if let yours = other[element.id] {
-                merged.append(try Element.mergedElement(element, yours, base: original?[element.id], favoring: favoring?.retyped()))
-            } else if try keeps(element, changedBy: KeepMerge<Element>.ours, base: original) {
+        for element in leader {
+            if let counterpart = followerByID[element.id] {
+                let (ourElement, theirElement) = theirsLead ? (counterpart, element) : (element, counterpart)
+                merged.append(try Element.mergedElement(ourElement, theirElement, base: original?[element.id], favoring: favoring?.retyped()))
+            } else if try keeps(element, changedBy: leaderSide, base: original) {
                 merged.append(element)
             }
         }
-        for (offset, element) in theirs.enumerated() where mine[element.id] == nil {
-            guard try keeps(element, changedBy: KeepMerge<Element>.theirs, base: original) else { continue }
-            let predecessor = theirs[..<offset].last { earlier in merged.contains { $0.id == earlier.id } }
+        for (offset, element) in follower.enumerated() where leaderByID[element.id] == nil {
+            guard try keeps(element, changedBy: followerSide, base: original) else { continue }
+            let predecessor = follower[..<offset].last { earlier in merged.contains { $0.id == earlier.id } }
             let index = predecessor.flatMap { earlier in merged.firstIndex { $0.id == earlier.id } }.map { $0 + 1 } ?? 0
             merged.insert(element, at: index)
         }
         return merged
+    }
+
+    /// Whether `side` reordered the elements it shares with `base`.
+    static func reordered(_ side: [Element], from base: [Element]) -> Bool {
+        let sideIDs = Set(side.map(\.id))
+        let baseIDs = Set(base.map(\.id))
+        return !side.map(\.id).filter(baseIDs.contains).elementsEqual(base.map(\.id).filter(sideIDs.contains))
     }
 
     /// Whether an element only `changer` has stays: it does if that side
