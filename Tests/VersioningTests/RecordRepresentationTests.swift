@@ -36,7 +36,8 @@ private let noteID = UUID(uuidString: "00000000-0000-0000-0000-0000000000A1")!
         let record = try RecordRepresentation(note, schema: RecordSchema(for: Note.self))
         #expect(record.id == noteID)
         #expect(record.type == "Note")
-        #expect(record.fields == (try JSONRepresentation(note)))
+        let fields = try JSONRepresentation(note)
+        #expect(record.fields == fields)
         #expect(record.metadata == nil)
         #expect(try record.fields.decode(Note.self) == note)
     }
