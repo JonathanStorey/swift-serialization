@@ -21,10 +21,43 @@ extension RecordRepresentation {
         /// The target record's name.
         public var recordName: String
         public var action: Action
+        /// Whether the target is the record's `parent`, which CloudKit
+        /// shares the record with. A parent's action is always `.none`.
+        public var isParent: Bool
 
         public init(recordName: String, action: Action = .none) {
             self.recordName = recordName
             self.action = action
+            isParent = false
         }
+
+        /// A reference to the record's parent.
+        public init(parent recordName: String) {
+            self.recordName = recordName
+            action = .none
+            isParent = true
+        }
+    }
+}
+
+// `isParent` is written only when it is true, so a plain reference encodes
+// as it always has, and a missing flag decodes as `false`.
+extension RecordRepresentation.Reference {
+    private enum CodingKeys: String, CodingKey {
+        case recordName, action, isParent
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        recordName = try container.decode(String.self, forKey: .recordName)
+        action = try container.decode(Action.self, forKey: .action)
+        isParent = try container.decodeIfPresent(Bool.self, forKey: .isParent) ?? false
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(recordName, forKey: .recordName)
+        try container.encode(action, forKey: .action)
+        if isParent { try container.encode(true, forKey: .isParent) }
     }
 }

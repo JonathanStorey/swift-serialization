@@ -38,7 +38,7 @@ private struct Note: Codable, Identifiable {
     @Encrypted var body: String = ""
     @Encrypted var pin: Int? = nil
     @Reference(Folder.self) var folder: UUID? = nil
-    @Parent(Folder.self) var owner: UUID? = nil
+    @Reference(parent: Folder.self) var owner: UUID? = nil
     @References(to: \Tag.notes) var tags: [UUID] = []
     @Timestamp var updatedOnServer: Date? = nil
     @Transient var draft: String? = nil

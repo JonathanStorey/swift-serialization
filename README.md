@@ -400,19 +400,20 @@ when the list should merge across devices or outgrow a field.
 
 ### Parents
 
-`@Parent` is a read-only `@Reference` to the record that owns this one, and
-it is saved as the record's `parent`. CloudKit shares a record together with
+`@Reference(parent:)` points at the record that owns this one, and it is
+saved as the record's `parent`. CloudKit shares a record together with
 every record whose parent points at it, so sharing a folder shares its notes.
 
 ```swift
 struct Note: Codable, Identifiable {
     var id: UUID
-    @Parent(Folder.self) var folder: Folder.ID? = nil
+    @Reference(parent: Folder.self) var folder: Folder.ID? = nil
 }
 ```
 
-It encodes like a `@Reference` with no action, because CloudKit requires a
-parent reference to have the action `.none`.
+It takes no action, because CloudKit requires a parent reference to have the
+action `.none`. Its reference encodes `"isParent": true`, so the flag
+survives decoding and merging, and a record has at most one parent.
 
 ### Locations
 
