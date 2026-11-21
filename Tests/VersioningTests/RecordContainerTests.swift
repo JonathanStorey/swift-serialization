@@ -37,7 +37,7 @@ import Testing
 
     @Test func badSQLThrowsSQLitesMessage() {
         do {
-            try RecordContainer().execute("CREATE TABLE")
+            try RecordContainer().execute("CREAT TABLE note (title TEXT)")
             Issue.record("Expected a syntax error.")
         } catch {
             #expect(error.description.contains("syntax error"))
