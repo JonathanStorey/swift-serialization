@@ -559,6 +559,29 @@ The record type must match, every required field must be present with the
 field's CloudKit type, encrypted fields must be in `encryptedValues`, and an
 enum field must hold one of its cases.
 
+## RecordRepresentation
+
+`RecordRepresentation` is one CloudKit record without the CloudKit
+framework: a model's `id`, its record type, its fields as JSON, and the
+server's `metadata`, the archived system fields that carry the change tag.
+A store keys each record by a `RecordID`, which holds the record name and
+the zone, so the zone is never stored in the record itself.
+
+```swift
+let schema = try RecordSchema(for: Note.self)
+let record = try RecordRepresentation(note, schema: schema)
+
+var confirmed: [RecordRepresentation.RecordID: RecordRepresentation] = [:]
+confirmed[RecordRepresentation.RecordID(recordName: note.id.uuidString)] = record
+```
+
+Creating one throws `EncodingError.invalidValue` for anything CloudKit would
+reject: a schema for another type, an invalid or reserved field name, an
+`INT64` field that does not fit, more than 750 references, or fields over
+1 MB. Its checked properties are read-only, so a record that exists can be
+saved. `Metadata` merges to theirs, because the server's change tag is the
+one the next save must carry.
+
 ## Requirements
 
 - Swift 6.0 or later (Xcode 16+)
