@@ -52,3 +52,34 @@ extension DefaultMergeStrategy: MergeStrategy where Value: Codable {
         }
     }
 }
+
+extension JSONRepresentation {
+    /// This encoded `Value` merged with `theirs` as ``DefaultMergeStrategy``
+    /// merges, so a store can merge what it holds without decoding every
+    /// version.
+    ///
+    /// ```swift
+    /// let merged = try ours.merging(theirs, base: base, as: Note.self)
+    /// ```
+    ///
+    /// `Value`'s schema guides the merge, so only this version, ours, need
+    /// decode as a `Value`. `base` and `theirs` need only be JSON, as a
+    /// version an older or newer type wrote is:
+    ///
+    /// - A key `Value` declares merges by its type's rules.
+    /// - A key it does not, such as one a newer version added, merges as
+    ///   JSON and is kept, so passing the result on never loses it.
+    ///
+    /// With `favoring`, each conflicting value takes that side. The result
+    /// always decodes as a `Value`, and a merge whose result would not, as
+    /// when `theirs` changed a declared property's type, throws.
+    public func merging<Value: Codable>(_ theirs: JSONRepresentation, base: JSONRepresentation?, as type: Value.Type, favoring side: KeepMerge<Value>? = nil) throws(MergeConflict) -> JSONRepresentation {
+        do {
+            return try MergeContext(self, theirs, base: base, as: Value.self, favoring: side, readingTypes: true).mergedJSON(Value.self)
+        } catch let conflict as MergeConflict {
+            throw conflict
+        } catch {
+            throw MergeConflict()
+        }
+    }
+}

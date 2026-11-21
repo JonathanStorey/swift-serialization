@@ -13,6 +13,7 @@ final class MergeContext: @unchecked Sendable {
     private let merged: JSONRepresentation
     private let conflicts: [JSONRepresentation.Path]
     private let side: KeepMerge<Void>?
+    private let schema: JSONSchema?
     private let readsTypes: Bool
     private var settled: [JSONRepresentation.Path] = []
     private var failed: [JSONRepresentation.Path] = []
@@ -20,9 +21,13 @@ final class MergeContext: @unchecked Sendable {
     /// Merges the encoded versions as JSON, keeping the `favoring` side at
     /// each conflict. Reading types, a property's type can settle a
     /// conflict by its own rules.
-    init<Value: Codable>(_ ours: Value, _ theirs: Value, base: JSONRepresentation?, favoring side: KeepMerge<Value>?, readingTypes readsTypes: Bool) throws {
-        let mine = try JSONRepresentation(ours)
-        let other = try JSONRepresentation(theirs)
+    convenience init<Value: Codable>(_ ours: Value, _ theirs: Value, base: JSONRepresentation?, favoring side: KeepMerge<Value>?, readingTypes readsTypes: Bool) throws {
+        try self.init(JSONRepresentation(ours), JSONRepresentation(theirs), base: base, as: Value.self, favoring: side, readingTypes: readsTypes)
+    }
+
+    /// Merges encoded versions of a `Value`. Only `mine` need decode as
+    /// one, since `Value`'s schema guides the merge.
+    init<Value: Codable>(_ mine: JSONRepresentation, _ other: JSONRepresentation, base: JSONRepresentation?, as type: Value.Type, favoring side: KeepMerge<Value>?, readingTypes readsTypes: Bool) {
         // A type the schema cannot describe still merges by shape.
         let schema = try? JSONSchema(for: Value.self)
         var conflicts: [JSONRepresentation.Path] = []
@@ -36,7 +41,15 @@ final class MergeContext: @unchecked Sendable {
         self.merged = merged
         self.conflicts = conflicts
         self.side = side?.retyped()
+        self.schema = schema
         self.readsTypes = readsTypes
+    }
+
+    /// The merged JSON: `Value` decoded as ``decode(_:)`` does and encoded
+    /// again, keeping every key `Value` does not declare, such as one a
+    /// newer version added, as the JSON merge left it.
+    func mergedJSON<Value: Codable>(_ type: Value.Type) throws -> JSONRepresentation {
+        try JSONRepresentation(decode(Value.self)).addingUndeclaredKeys(from: merged, under: schema)
     }
 
     /// The merged value. Without a favored side, every conflict that no
@@ -173,6 +186,27 @@ private extension JSONRepresentation {
     /// a top-level fragment is not decodable everywhere.
     func decoded<T: Decodable>(_ type: T.Type) -> T? {
         (try? JSONRepresentation.array([self]).decode([T].self))?.first
+    }
+}
+
+private extension JSONRepresentation {
+    /// This object with the keys of `merged` that `schema` does not declare,
+    /// at every depth where both are objects. Under a dictionary, or without
+    /// a schema, every key decoded, so none are added.
+    func addingUndeclaredKeys(from merged: JSONRepresentation, under schema: JSONSchema?) -> JSONRepresentation {
+        guard case .object(var typed) = self, case .object(let other) = merged else { return self }
+        var declared: JSONSchema.Properties?
+        if case .object(let properties)? = schema?.unwrapped { declared = properties }
+        for index in typed.indices {
+            let key = typed[index].key
+            guard let value = other.first(where: { $0.key == key })?.value else { continue }
+            typed[index].value = typed[index].value.addingUndeclaredKeys(from: value, under: declared?.first { $0.key == key }?.value)
+        }
+        guard let declared else { return .object(typed) }
+        for pair in other where !declared.contains(where: { $0.key == pair.key }) && !typed.contains(where: { $0.key == pair.key }) {
+            typed.append(pair)
+        }
+        return .object(typed)
     }
 }
 

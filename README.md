@@ -318,6 +318,16 @@ try PropertyMerge<Note>().merge(base: base, ours: ours, theirs: theirs)
 try PropertyMerge<Note>(favoring: .theirs).merge(base: base, ours: ours, theirs: theirs)
 ```
 
+`merging(_:base:as:favoring:)` merges JSON the way `DefaultMergeStrategy`
+merges a value, so a store can merge what it holds without decoding every
+version. Only ours must decode as the type. Base and theirs may come from an
+older or newer version, and a key the type does not declare, such as one a
+newer version added, is kept rather than lost. The result always decodes.
+
+```swift
+let merged = try ours.merging(theirs, base: base, as: Note.self)
+```
+
 ## CloudKit records
 
 ### References
