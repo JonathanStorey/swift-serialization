@@ -16,6 +16,7 @@ private struct Child: Codable, Hashable {
 
     /// The wrapper's storage is private, so only this file can read it.
     var folderAction: RecordRepresentation.Reference.Action { _folder.action }
+    var folderIsParentForTesting: Bool { _folder.isParent }
 }
 
 @Suite struct ReferenceTests {
@@ -82,5 +83,50 @@ private struct Child: Codable, Hashable {
         #expect(reference.action == .none)
         #expect(try json(reference) == #"{"action":"none","recordName":"A"}"#)
         #expect(try JSONDecoder().decode(RecordRepresentation.Reference.self, from: Data(json(reference).utf8)) == reference)
+    }
+}
+
+private struct Page: Codable, Hashable {
+    @Reference(parent: Folder.self) var folder: Folder.ID? = nil
+
+    /// The wrapper's storage is private, so only this file can read it.
+    var folderIsParent: Bool { _folder.isParent }
+}
+
+@Suite struct ParentReferenceTests {
+    private let folder = UUID(uuidString: "00000000-0000-0000-0000-00000000000F")!
+
+    private func json(_ value: some Encodable) throws -> String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return String(decoding: try encoder.encode(value), as: UTF8.self)
+    }
+
+    @Test func encodesAParentReferenceWithNoAction() throws {
+        #expect(try json(Page(folder: folder)) == #"{"folder":{"action":"none","isParent":true,"recordName":"00000000-0000-0000-0000-00000000000F"}}"#)
+    }
+
+    @Test func leavesOutNilAndDecodesMissingAsNil() throws {
+        #expect(try json(Page()) == "{}")
+        #expect(try JSONDecoder().decode(Page.self, from: Data("{}".utf8)).folder == nil)
+    }
+
+    @Test func theFlagSurvivesDecodingAndMerging() throws {
+        let model = Page(folder: folder)
+        let decoded = try JSONDecoder().decode(Page.self, from: JSONEncoder().encode(model))
+        #expect(decoded == model)
+        #expect(decoded.folderIsParent)
+        #expect(try JSONRepresentation(model).decode(Page.self).folderIsParent)
+        #expect(try DefaultMergeStrategy<Page>().merge(base: Page(), ours: model, theirs: Page()).folderIsParent)
+    }
+
+    @Test func aParentIsNotAPlainReference() throws {
+        #expect(!Child(folder: folder).folderIsParentForTesting)
+        #expect(RecordRepresentation.Reference(parent: "A") != RecordRepresentation.Reference(recordName: "A"))
+        #expect(try JSONDecoder().decode(RecordRepresentation.Reference.self, from: Data(#"{"action":"none","recordName":"A"}"#.utf8)).isParent == false)
+    }
+
+    @Test func rejectsARecordNameThatIsNotAUUID() {
+        #expect(throws: DecodingError.self) { try JSONDecoder().decode(Page.self, from: Data(#"{"folder":{"recordName":"42","action":"none","isParent":true}}"#.utf8)) }
     }
 }

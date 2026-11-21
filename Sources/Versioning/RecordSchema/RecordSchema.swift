@@ -49,7 +49,7 @@ extension RecordSchema {
     /// - `String`, `URL` and `UUID` are `STRING`, integers and `Bool` are
     ///   `INT64`, and floating-point numbers are `DOUBLE`.
     /// - `Date` is `TIMESTAMP`, `Data` is `BYTES`, ``Location`` is
-    ///   `LOCATION`, `@Asset` is `ASSET`, and `@Reference`, `@Parent` and
+    ///   `LOCATION`, `@Asset` is `ASSET`, and `@Reference` and
     ///   each element of `@References` are `REFERENCE`.
     /// - An array or a `Set` is a `LIST`. A nested value, a dictionary, or a
     ///   list of lists, is stored as `BYTES`, and its ``Field/schema``

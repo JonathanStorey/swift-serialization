@@ -28,14 +28,36 @@ import Foundation
 /// decoded reference keeps the action it was saved with, and a decoded `nil`
 /// reference has the action `.none`, because Swift does not pass the
 /// attribute's arguments to `init(from:)`.
+///
+/// `parent:` makes the target the record's parent, saved as the record's
+/// `parent`. CloudKit shares a record together with every record whose
+/// parent points at it, so sharing a folder shares its notes:
+///
+/// ```swift
+/// @Reference(parent: Folder.self) var folder: Folder.ID? = nil
+/// ```
+///
+/// A parent has no action, because CloudKit requires a parent reference to
+/// have the action `.none`, and a record has at most one parent. The
+/// reference encodes `isParent`, so the flag survives decoding and merging.
 @propertyWrapper
 public struct Reference<Target: Identifiable>: Hashable, Sendable where Target.ID == UUID {
     public let wrappedValue: UUID?
     public let action: RecordRepresentation.Reference.Action
+    /// Whether the target is the record's parent.
+    public let isParent: Bool
 
     public init(wrappedValue: UUID? = nil, _ target: Target.Type, action: RecordRepresentation.Reference.Action = .none) {
         self.wrappedValue = wrappedValue
         self.action = action
+        isParent = false
+    }
+
+    /// A reference to the record's parent, with the action `.none`.
+    public init(wrappedValue: UUID? = nil, parent target: Target.Type) {
+        self.wrappedValue = wrappedValue
+        action = .none
+        isParent = true
     }
 }
 
@@ -50,13 +72,14 @@ extension Reference: Codable {
         guard let id = UUID(uuidString: reference.recordName) else {
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Record name \"\(reference.recordName)\" is not a UUID.")
         }
-        self.init(wrappedValue: id, Target.self, action: reference.action)
+        self = reference.isParent ? Reference(wrappedValue: id, parent: Target.self) : Reference(wrappedValue: id, Target.self, action: reference.action)
     }
 
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
         if let wrappedValue {
-            try container.encode(RecordRepresentation.Reference(recordName: wrappedValue.uuidString, action: action))
+            let recordName = wrappedValue.uuidString
+            try container.encode(isParent ? RecordRepresentation.Reference(parent: recordName) : RecordRepresentation.Reference(recordName: recordName, action: action))
         } else {
             try container.encodeNil()
         }
